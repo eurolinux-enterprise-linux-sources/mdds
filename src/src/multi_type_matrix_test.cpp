@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012-2013 Kohei Yoshida
+ * Copyright (c) 2012 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,7 +28,6 @@
 #include "test_global.hpp"
 
 #include <mdds/multi_type_matrix.hpp>
-#include <mdds/multi_type_vector_custom_func1.hpp>
 
 #include <string>
 #include <ostream>
@@ -71,7 +70,163 @@ struct custom_string_trait
 
     static const mdds::mtv::element_t string_type_identifier = element_type_custom_string;
 
-    typedef mtv::custom_block_func1<string_element_block> element_block_func;
+    struct element_block_func
+    {
+        static mdds::mtv::base_element_block* create_new_block(
+            mdds::mtv::element_t type, size_t init_size)
+        {
+            switch (type)
+            {
+                case element_type_custom_string:
+                    return string_element_block::create_block(init_size);
+                default:
+                    return mdds::mtv::element_block_func::create_new_block(type, init_size);
+            }
+        }
+
+        static mdds::mtv::base_element_block* clone_block(const mdds::mtv::base_element_block& block)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    return string_element_block::clone_block(block);
+                default:
+                    return mdds::mtv::element_block_func::clone_block(block);
+            }
+        }
+
+        static void delete_block(mdds::mtv::base_element_block* p)
+        {
+            if (!p)
+                return;
+
+            switch (mtv::get_block_type(*p))
+            {
+                case element_type_custom_string:
+                    string_element_block::delete_block(p);
+                break;
+                default:
+                    mdds::mtv::element_block_func::delete_block(p);
+            }
+        }
+
+        static void resize_block(mdds::mtv::base_element_block& block, size_t new_size)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    string_element_block::resize_block(block, new_size);
+                break;
+                default:
+                    mdds::mtv::element_block_func::resize_block(block, new_size);
+            }
+        }
+
+        static void print_block(const mdds::mtv::base_element_block& block)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    string_element_block::print_block(block);
+                break;
+                default:
+                    mdds::mtv::element_block_func::print_block(block);
+            }
+        }
+
+        static void erase(mdds::mtv::base_element_block& block, size_t pos)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    string_element_block::erase_block(block, pos);
+                break;
+                default:
+                    mdds::mtv::element_block_func::erase(block, pos);
+            }
+        }
+
+        static void erase(mdds::mtv::base_element_block& block, size_t pos, size_t size)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    string_element_block::erase_block(block, pos, size);
+                break;
+                default:
+                    mdds::mtv::element_block_func::erase(block, pos, size);
+            }
+        }
+
+        static void append_values_from_block(
+            mdds::mtv::base_element_block& dest, const mdds::mtv::base_element_block& src)
+        {
+            switch (mtv::get_block_type(dest))
+            {
+                case element_type_custom_string:
+                    string_element_block::append_values_from_block(dest, src);
+                break;
+                default:
+                    mdds::mtv::element_block_func::append_values_from_block(dest, src);
+            }
+        }
+
+        static void append_values_from_block(
+            mdds::mtv::base_element_block& dest, const mdds::mtv::base_element_block& src,
+            size_t begin_pos, size_t len)
+        {
+            switch (mtv::get_block_type(dest))
+            {
+                case element_type_custom_string:
+                    string_element_block::append_values_from_block(dest, src, begin_pos, len);
+                break;
+                default:
+                    mdds::mtv::element_block_func::append_values_from_block(dest, src, begin_pos, len);
+            }
+        }
+
+        static void assign_values_from_block(
+            mdds::mtv::base_element_block& dest, const mdds::mtv::base_element_block& src,
+            size_t begin_pos, size_t len)
+        {
+            switch (mtv::get_block_type(dest))
+            {
+                case element_type_custom_string:
+                    string_element_block::assign_values_from_block(dest, src, begin_pos, len);
+                break;
+                default:
+                    mdds::mtv::element_block_func::assign_values_from_block(dest, src, begin_pos, len);
+            }
+        }
+
+        static bool equal_block(
+            const mdds::mtv::base_element_block& left, const mdds::mtv::base_element_block& right)
+        {
+            if (mtv::get_block_type(left) == element_type_custom_string)
+            {
+                if (mtv::get_block_type(right) != element_type_custom_string)
+                    return false;
+
+                return string_element_block::get(left) == string_element_block::get(right);
+            }
+            else if (mtv::get_block_type(right) == element_type_custom_string)
+                return false;
+
+            return mdds::mtv::element_block_func::equal_block(left, right);
+        }
+
+        static void overwrite_values(mdds::mtv::base_element_block& block, size_t pos, size_t len)
+        {
+            switch (mtv::get_block_type(block))
+            {
+                case element_type_custom_string:
+                    // Do nothing.  The client code manages the life cycle of these cells.
+                break;
+                default:
+                    mdds::mtv::element_block_func::overwrite_values(block, pos, len);
+            }
+        }
+    };
 };
 
 typedef mdds::multi_type_matrix<custom_string_trait> mtx_custom_type;
@@ -161,64 +316,6 @@ void mtm_test_construction()
         assert(mtx.get_string(0,0) == "foo");
         assert(mtx.get_type(1,4) == mtm::element_string);
         assert(mtx.get_string(1,4) == "foo");
-    }
-
-    {
-        // construct with an array of data.
-        vector<double> vals;
-        vals.push_back(1.1);
-        vals.push_back(1.2);
-        vals.push_back(1.3);
-        vals.push_back(1.4);
-        mtx_type mtx(2, 2, vals.begin(), vals.end());
-        mtx_type::size_pair_type sz = mtx.size();
-        assert(sz.row == 2 && sz.column == 2);
-        assert(mtx.get_numeric(0,0) == 1.1);
-        assert(mtx.get_numeric(1,0) == 1.2);
-        assert(mtx.get_numeric(0,1) == 1.3);
-        assert(mtx.get_numeric(1,1) == 1.4);
-
-        try
-        {
-            mtx_type mtx2(3, 2, vals.begin(), vals.end());
-            assert(!"Construction of this matrix should have failed!");
-        }
-        catch (const invalid_arg_error& e)
-        {
-            // Good.
-            cout << "exception caught (as expected) which says: " << e.what() << endl;
-        }
-
-        try
-        {
-            // Trying to initialize a matrix with array of unsupported data
-            // type should end with an exception thrown.
-            vector<size_t> vals_ptr(4, 22);
-            mtx_type mtx3(2, 2, vals_ptr.begin(), vals_ptr.end());
-            assert(!"Construction of this matrix should have failed!");
-        }
-        catch (const exception& e)
-        {
-            cout << "exception caught (as expected) which says: " << e.what() << endl;
-        }
-    }
-
-    {
-        // Construct with an array of custom string type.
-        vector<custom_string> vals;
-        vals.push_back(custom_string("A"));
-        vals.push_back(custom_string("B"));
-        vals.push_back(custom_string("C"));
-        vals.push_back(custom_string("D"));
-        mtx_custom_type mtx(1, 4, vals.begin(), vals.end());
-        assert(mtx.get_string(0,0).get() == "A");
-        assert(mtx.get_string(0,1).get() == "B");
-        assert(mtx.get_string(0,2).get() == "C");
-        assert(mtx.get_string(0,3).get() == "D");
-        assert(mtx.get_type(0,0) == mtm::element_string);
-        assert(mtx.get_type(0,1) == mtm::element_string);
-        assert(mtx.get_type(0,2) == mtm::element_string);
-        assert(mtx.get_type(0,3) == mtm::element_string);
     }
 }
 
@@ -334,38 +431,6 @@ void mtm_test_set_empty()
         assert(mtx.get_type(2, 2) != mtm::element_empty);
         assert(mtx.get_type(2, 3) != mtm::element_empty);
         assert(mtx.get_type(2, 4) != mtm::element_empty);
-    }
-
-    {
-        // Set a range of elements empty.
-        mtx_type mtx(5, 3, string("A"));
-        cout << "setting element (0,1) to (1,2) empty..." << endl;
-        mtx.set_empty(1, 0, 6); // rows 1-4 in column 0 and rows 0-1 in column 1.
-        assert(mtx.get_type(0, 0) == mtm::element_string);
-        assert(mtx.get_type(1, 0) == mtm::element_empty);
-        assert(mtx.get_type(2, 0) == mtm::element_empty);
-        assert(mtx.get_type(3, 0) == mtm::element_empty);
-        assert(mtx.get_type(4, 0) == mtm::element_empty);
-        assert(mtx.get_type(0, 1) == mtm::element_empty);
-        assert(mtx.get_type(1, 1) == mtm::element_empty);
-        assert(mtx.get_type(2, 1) == mtm::element_string);
-        assert(mtx.get_type(3, 1) == mtm::element_string);
-        assert(mtx.get_type(4, 1) == mtm::element_string);
-        assert(mtx.get_type(0, 2) == mtm::element_string);
-        assert(mtx.get_type(1, 2) == mtm::element_string);
-        assert(mtx.get_type(2, 2) == mtm::element_string);
-        assert(mtx.get_type(3, 2) == mtm::element_string);
-        assert(mtx.get_type(4, 2) == mtm::element_string);
-
-        try
-        {
-            mtx.set_empty(2, 2, 0);
-            assert(false);
-        }
-        catch (const std::exception&)
-        {
-            cout << "exception thrown on length of zero as expected" << endl;
-        }
     }
 }
 
@@ -647,118 +712,6 @@ void mtm_test_custom_string()
     assert(mtx.get<double>(1, 1) == 12.3);
 }
 
-void mtm_test_position()
-{
-    stack_printer __stack_printer__("::mtm_test_position");
-    mtx_type mtx(3, 2);
-    mtx.set(0, 0, 1.0);
-    mtx.set(0, 1, string("foo"));
-    mtx.set(1, 0, 2.0);
-    mtx.set(1, 1, 2.1);
-    mtx.set(2, 0, true);
-    mtx.set(2, 1, false);
-
-    assert(mtx.get_type(0, 0) == mtm::element_numeric);
-    assert(mtx.get_type(0, 1) == mtm::element_string);
-    assert(mtx.get_type(1, 0) == mtm::element_numeric);
-    assert(mtx.get_type(1, 1) == mtm::element_numeric);
-    assert(mtx.get_type(2, 0) == mtm::element_boolean);
-    assert(mtx.get_type(2, 1) == mtm::element_boolean);
-
-    mtx_type::position_type pos = mtx.position(1, 1);
-    assert(mtx.get_type(pos) == mtm::element_numeric);
-    assert(mtx.get_numeric(pos) == 2.1);
-
-    pos = mtx.position(2, 0);
-    assert(mtx.get_type(pos) == mtm::element_boolean);
-    assert(mtx.get_boolean(pos) == true);
-
-    pos = mtx.position(0, 1);
-    assert(mtx.get_type(pos) == mtm::element_string);
-    assert(mtx.get_string(pos) == "foo");
-
-    mtx.set_empty(pos);
-    assert(mtx.get_type(0, 1) == mtm::element_empty);
-
-    pos = mtx.position(1, 1);
-    mtx.set(pos, false);
-    assert(mtx.get_type(1, 1) == mtm::element_boolean);
-    assert(mtx.get_boolean(1, 1) == false);
-
-    pos = mtx.position(2, 0);
-    mtx.set(pos, 12.3);
-    assert(mtx.get_type(2, 0) == mtm::element_numeric);
-    assert(mtx.get_numeric(2, 0) == 12.3);
-
-    pos = mtx.position(2, 1);
-    mtx.set(pos, string("ABC"));
-    assert(mtx.get_type(2, 1) == mtm::element_string);
-    assert(mtx.get_string(2, 1) == "ABC");
-
-    // Start over, and test the traversal of position object.
-    pos = mtx.position(0, 0);
-    mtx_type::size_pair_type mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 0);
-    assert(mtx_pos.row == 0);
-
-    pos = mtx_type::next_position(pos);
-    mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 0);
-    assert(mtx_pos.row == 1);
-
-    pos = mtx_type::next_position(pos);
-    mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 0);
-    assert(mtx_pos.row == 2);
-
-    pos = mtx_type::next_position(pos);
-    mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 1);
-    assert(mtx_pos.row == 0);
-
-    pos = mtx_type::next_position(pos);
-    mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 1);
-    assert(mtx_pos.row == 1);
-
-    pos = mtx_type::next_position(pos);
-    mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.column == 1);
-    assert(mtx_pos.row == 2);
-
-    pos = mtx_type::next_position(pos);
-    assert(pos == mtx.end_position());
-}
-
-void mtm_test_set_data_via_position()
-{
-    stack_printer __stack_printer__("::mtm_test_set_data_via_position");
-    mtx_type mtx(5, 4);
-    mtx_type::position_type pos = mtx.position(0, 1);
-    vector<double> data;
-    data.push_back(1.1);
-    data.push_back(1.2);
-    data.push_back(1.3);
-    data.push_back(1.4);
-    data.push_back(1.5);
-    pos = mtx.set(pos, data.begin(), data.end());
-    assert(mtx.get<double>(0, 1) == 1.1);
-    assert(mtx.get<double>(1, 1) == 1.2);
-    assert(mtx.get<double>(2, 1) == 1.3);
-    assert(mtx.get<double>(3, 1) == 1.4);
-    assert(mtx.get<double>(4, 1) == 1.5);
-
-    mtx_type::size_pair_type mtx_pos = mtx.matrix_position(pos);
-    assert(mtx_pos.row == 0);
-    assert(mtx_pos.column == 1);
-    pos = mtx.position(pos, 0, 2);
-    pos = mtx.set(pos, string("test"));
-    pos = mtx_type::next_position(pos);
-    pos = mtx.set(pos, true);
-    assert(mtx.get<string>(0, 2) == "test");
-    assert(mtx.get<bool>(1, 2) == true);
-}
-
 /**
  * Measure the performance of object instantiation for filled storage.
  */
@@ -929,82 +882,33 @@ void mtm_perf_test_iterate_elements()
     }
 }
 
-void mtm_perf_test_insert_via_position_object()
-{
-    size_t rowsize = 3000, colsize = 3000;
-    {
-        stack_printer __stack_printer__("::mtm_perf_test_insert_via_position_object (column and row positions)");
-        mtx_type mx(rowsize, colsize);
-        for (size_t i = 0; i < rowsize; ++i)
-        {
-            for (size_t j = 0; j < colsize; ++j)
-            {
-                mx.set(i, j, 1.1);
-            }
-        }
-    }
-
-    {
-        stack_printer __stack_printer__("::mtm_perf_test_insert_via_position_object (position object)");
-        mtx_type mx(rowsize, colsize);
-        mtx_type::position_type pos = mx.position(0, 0);
-        for (size_t i = 0; i < rowsize; ++i)
-        {
-            for (size_t j = 0; j < colsize; ++j)
-            {
-                pos = mx.set(pos, 1.1);
-                pos = mtx_type::next_position(pos);
-            }
-        }
-    }
-
-    {
-        stack_printer __stack_printer__("::mtm_perf_test_insert_via_position_object (position object)");
-        mtx_type mx(rowsize, colsize);
-        mtx_type::position_type pos = mx.position(0, 0);
-        for (; pos != mx.end_position(); pos = mtx_type::next_position(pos))
-            pos = mx.set(pos, 1.1);
-    }
-}
-
 int main (int argc, char **argv)
 {
-    try
-    {
-        cmd_options opt;
-        if (!parse_cmd_options(argc, argv, opt))
-            return EXIT_FAILURE;
-
-        if (opt.test_func)
-        {
-            mtm_test_construction();
-            mtm_test_data_insertion();
-            mtm_test_data_insertion_multiple();
-            mtm_test_set_empty();
-            mtm_test_swap();
-            mtm_test_transpose();
-            mtm_test_resize();
-            mtm_test_copy();
-            mtm_test_assignment();
-            mtm_test_numeric();
-            mtm_test_walk();
-            mtm_test_custom_string();
-            mtm_test_position();
-            mtm_test_set_data_via_position();
-        }
-
-        if (opt.test_perf)
-        {
-            mtm_perf_test_storage_creation();
-            mtm_perf_test_storage_set_numeric();
-            mtm_perf_test_iterate_elements();
-            mtm_perf_test_insert_via_position_object();
-        }
-    }
-    catch (const std::exception& e)
-    {
-        fprintf(stdout, "Test failed: %s\n", e.what());
+    cmd_options opt;
+    if (!parse_cmd_options(argc, argv, opt))
         return EXIT_FAILURE;
+
+    if (opt.test_func)
+    {
+        mtm_test_construction();
+        mtm_test_data_insertion();
+        mtm_test_data_insertion_multiple();
+        mtm_test_set_empty();
+        mtm_test_swap();
+        mtm_test_transpose();
+        mtm_test_resize();
+        mtm_test_copy();
+        mtm_test_assignment();
+        mtm_test_numeric();
+        mtm_test_walk();
+        mtm_test_custom_string();
+    }
+
+    if (opt.test_perf)
+    {
+        mtm_perf_test_storage_creation();
+        mtm_perf_test_storage_set_numeric();
+        mtm_perf_test_iterate_elements();
     }
 
     cout << "Test finished successfully!" << endl;

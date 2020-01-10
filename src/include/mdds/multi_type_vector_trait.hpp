@@ -40,7 +40,7 @@ struct element_block_func_base
 
     inline static base_element_block* clone_block(const base_element_block& block);
 
-    inline static void delete_block(const base_element_block* p);
+    inline static void delete_block(base_element_block* p);
 
     inline static void resize_block(base_element_block& block, size_t new_size);
 
@@ -58,12 +58,6 @@ struct element_block_func_base
     inline static void assign_values_from_block(
         base_element_block& dest, const base_element_block& src, size_t begin_pos, size_t len);
 
-    inline static void prepend_values_from_block(
-        base_element_block& dest, const base_element_block& src, size_t begin_pos, size_t len);
-
-    inline static void swap_values(
-        base_element_block& blk1, base_element_block& blk2, size_t pos1, size_t pos2, size_t len);
-
     inline static bool equal_block(const base_element_block& left, const base_element_block& right);
 
     /**
@@ -74,8 +68,6 @@ struct element_block_func_base
      * store primitive values), this method can be left empty.
      */
     inline static void overwrite_values(base_element_block& block, size_t pos, size_t len);
-
-    inline static void shrink_to_fit(base_element_block& block);
 };
 
 base_element_block* element_block_func_base::create_new_block(element_t type, size_t init_size)
@@ -140,7 +132,7 @@ base_element_block* element_block_func_base::clone_block(const base_element_bloc
     }
 }
 
-void element_block_func_base::delete_block(const base_element_block* p)
+void element_block_func_base::delete_block(base_element_block* p)
 {
     if (!p)
         return;
@@ -477,95 +469,7 @@ void element_block_func_base::assign_values_from_block(
             uchar_element_block::assign_values_from_block(dest, src, begin_pos, len);
         break;
         default:
-            throw general_error("assign_values_from_block: failed to assign values to a block of unknown type.");
-    }
-}
-
-void element_block_func_base::prepend_values_from_block(
-    base_element_block& dest, const base_element_block& src, size_t begin_pos, size_t len)
-{
-    switch (get_block_type(dest))
-    {
-        case element_type_numeric:
-            numeric_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_string:
-            string_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_short:
-            short_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_ushort:
-            ushort_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_int:
-            int_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_uint:
-            uint_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_long:
-            long_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_ulong:
-            ulong_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_boolean:
-            boolean_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_char:
-            char_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        case element_type_uchar:
-            uchar_element_block::prepend_values_from_block(dest, src, begin_pos, len);
-        break;
-        default:
-            throw general_error("prepend_values_from_block: failed to prepend values to a block of unknown type.");
-    }
-}
-
-void element_block_func_base::swap_values(
-    base_element_block& blk1, base_element_block& blk2, size_t pos1, size_t pos2, size_t len)
-{
-    element_t blk1_type = get_block_type(blk1);
-    assert(blk1_type == get_block_type(blk2));
-    switch (blk1_type)
-    {
-        case element_type_numeric:
-            numeric_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_string:
-            string_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_short:
-            short_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_ushort:
-            ushort_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_int:
-            int_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_uint:
-            uint_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_long:
-            long_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_ulong:
-            ulong_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_boolean:
-            boolean_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_char:
-            char_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        case element_type_uchar:
-            uchar_element_block::swap_values(blk1, blk2, pos1, pos2, len);
-        break;
-        default:
-            throw general_error("swap_values: block of unknown type.");
+            throw general_error("assign_values: failed to assign values to a block of unknown type.");
     }
 }
 
@@ -608,48 +512,6 @@ bool element_block_func_base::equal_block(const base_element_block& left, const 
 void element_block_func_base::overwrite_values(base_element_block&, size_t, size_t)
 {
     // Do nothing for the standard types.
-}
-
-void element_block_func_base::shrink_to_fit(base_element_block& block)
-{
-    switch (get_block_type(block))
-    {
-        case element_type_numeric:
-            numeric_element_block::shrink_to_fit(block);
-        break;
-        case element_type_string:
-            string_element_block::shrink_to_fit(block);
-        break;
-        case element_type_short:
-            short_element_block::shrink_to_fit(block);
-        break;
-        case element_type_ushort:
-            ushort_element_block::shrink_to_fit(block);
-        break;
-        case element_type_int:
-            int_element_block::shrink_to_fit(block);
-        break;
-        case element_type_uint:
-            uint_element_block::shrink_to_fit(block);
-        break;
-        case element_type_long:
-            long_element_block::shrink_to_fit(block);
-        break;
-        case element_type_ulong:
-            ulong_element_block::shrink_to_fit(block);
-        break;
-        case element_type_boolean:
-            boolean_element_block::shrink_to_fit(block);
-        break;
-        case element_type_char:
-            char_element_block::shrink_to_fit(block);
-        break;
-        case element_type_uchar:
-            uchar_element_block::shrink_to_fit(block);
-        break;
-        default:
-            throw general_error("shrink_to_fit: failed to print a block of unknown type.");
-    }
 }
 
 /**

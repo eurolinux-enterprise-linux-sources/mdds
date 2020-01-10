@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2008-2014 Kohei Yoshida
+ * Copyright (c) 2008-2011 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,13 +25,11 @@
  *
  ************************************************************************/
 
-#ifndef MDDS_GLOBAL_HPP
-#define MDDS_GLOBAL_HPP
+#ifndef __MDDS_GLOBAL_HPP__
+#define __MDDS_GLOBAL_HPP__
 
 #include <exception>
 #include <string>
-
-#define MDDS_ASCII(literal) literal, sizeof(literal)-1
 
 namespace mdds {
 

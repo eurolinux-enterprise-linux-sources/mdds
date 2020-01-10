@@ -19,8 +19,7 @@ EXECS= \
 	multi_type_matrix_test \
 	rectangle_set_test \
 	multi_type_vector_test_default \
-	multi_type_vector_test_custom \
-	sorted_string_map_test
+	multi_type_vector_test_custom
 
 HEADERS= \
 	@top_srcdir@/$(INCDIR)/mdds/compat/unique_ptr.hpp \
@@ -43,18 +42,7 @@ HEADERS= \
 	@top_srcdir@/$(INCDIR)/mdds/quad_node.hpp \
 	@top_srcdir@/$(INCDIR)/mdds/rectangle_set_def.inl \
 	@top_srcdir@/$(INCDIR)/mdds/rectangle_set.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/segment_tree.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/sorted_string_map_def.inl \
-	@top_srcdir@/$(INCDIR)/mdds/sorted_string_map.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_custom_func1.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_custom_func2.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_custom_func3.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_itr.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_trait.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_types.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_macro.hpp \
-	@top_srcdir@/$(INCDIR)/mdds/multi_type_vector_def.inl
+	@top_srcdir@/$(INCDIR)/mdds/segment_tree.hpp
 
 DEPENDS= \
 	$(HEADERS)
@@ -66,8 +54,7 @@ TESTS = \
 	test.st \
 	test.mtm \
 	test.mtv \
-	test.mtmatrix \
-	test.ssmap
+	test.mtmatrix
 
 TESTS_MEM = \
 	test.pqt.mem \
@@ -76,7 +63,6 @@ TESTS_MEM = \
 	test.st.mem \
 	test.mtm.mem \
 	test.mtmatrix \
-	test.ssmap
 
 # You may add $(TESTS_MEM) if valgrind is available on your platform
 ALL_TESTS = $(TESTS)
@@ -110,14 +96,8 @@ $(OBJDIR)/multi_type_vector_test_default.o: @top_srcdir@/$(SRCDIR)/multi_type_ve
 $(OBJDIR)/multi_type_vector_test_custom.o: @top_srcdir@/$(SRCDIR)/multi_type_vector_test_custom.cpp $(DEPENDS)
 	$(CXX) $(CPPFLAGS) -c -o $@ @top_srcdir@/$(SRCDIR)/multi_type_vector_test_custom.cpp
 
-$(OBJDIR)/multi_type_vector_test_perf.o: @top_srcdir@/$(SRCDIR)/multi_type_vector_test_perf.cpp $(DEPENDS)
-	$(CXX) $(CPPFLAGS) -c -o $@ @top_srcdir@/$(SRCDIR)/multi_type_vector_test_perf.cpp
-
 $(OBJDIR)/multi_type_matrix_test.o: @top_srcdir@/$(SRCDIR)/multi_type_matrix_test.cpp $(DEPENDS)
 	$(CXX) $(CPPFLAGS) -c -o $@ @top_srcdir@/$(SRCDIR)/multi_type_matrix_test.cpp
-
-$(OBJDIR)/sorted_string_map_test.o: @top_srcdir@/$(SRCDIR)/sorted_string_map_test.cpp $(DEPENDS)
-	$(CXX) $(CPPFLAGS) -c -o $@ @top_srcdir@/$(SRCDIR)/sorted_string_map_test.cpp
 
 flat_segment_tree_test: pre $(OBJDIR)/flat_segment_tree_test.o
 	$(CXX) $(LDFLAGS) $(OBJDIR)/flat_segment_tree_test.o -o $@
@@ -140,16 +120,10 @@ multi_type_vector_test_default: pre $(OBJDIR)/multi_type_vector_test_default.o
 multi_type_vector_test_custom: pre $(OBJDIR)/multi_type_vector_test_custom.o
 	$(CXX) $(LDFLAGS) $(OBJDIR)/multi_type_vector_test_custom.o -o $@
 
-multi_type_vector_test_perf: pre $(OBJDIR)/multi_type_vector_test_perf.o
-	$(CXX) $(LDFLAGS) $(OBJDIR)/multi_type_vector_test_perf.o -o $@
-
 multi_type_matrix_test: pre $(OBJDIR)/multi_type_matrix_test.o
 	$(CXX) $(LDFLAGS) $(OBJDIR)/multi_type_matrix_test.o -o $@
 
-sorted_string_map_test: pre $(OBJDIR)/sorted_string_map_test.o
-	$(CXX) $(LDFLAGS) $(OBJDIR)/sorted_string_map_test.o -o $@
-
-multi_type_vector_test: multi_type_vector_test_default multi_type_vector_test_custom multi_type_vector_test_perf
+multi_type_vector_test: multi_type_vector_test_default multi_type_vector_test_custom
 
 stlperf_test: pre @top_srcdir@/$(SRCDIR)/stlperf_test.cpp
 	$(CXX) $(LDFLAGS) $(CPPFLAGS) @top_srcdir@/$(SRCDIR)/stlperf_test.cpp -o $@
@@ -200,15 +174,16 @@ test.mtm.mem: mixed_type_matrix_test
 	valgrind --tool=memcheck --leak-check=full ./mixed_type_matrix_test func
 
 test.mtv: multi_type_vector_test_default multi_type_vector_test_custom
-	./multi_type_vector_test_default
-	./multi_type_vector_test_custom
+	./multi_type_vector_test_default func
+	./multi_type_vector_test_custom func
 
-test.mtv.perf: multi_type_vector_test_perf
-	./multi_type_vector_test_perf
+test.mtv.perf: multi_type_vector_test_default multi_type_vector_test_custom
+	./multi_type_vector_test_default perf
+	./multi_type_vector_test_custom perf
 
 test.mtv.mem: multi_type_vector_test_default multi_type_vector_test_custom
-	valgrind --tool=memcheck --leak-check=full ./multi_type_vector_test_default
-	valgrind --tool=memcheck --leak-check=full ./multi_type_vector_test_custom
+	valgrind --tool=memcheck --leak-check=full ./multi_type_vector_test_default func
+	valgrind --tool=memcheck --leak-check=full ./multi_type_vector_test_custom func
 
 test.mtmatrix: multi_type_matrix_test
 	./multi_type_matrix_test func
@@ -218,12 +193,6 @@ test.mtmatrix.perf: multi_type_matrix_test
 
 test.mtmatrix.mem: multi_type_matrix_test
 	valgrind --tool=memcheck --leak-check=full ./multi_type_matrix_test func
-
-test.ssmap: sorted_string_map_test
-	./sorted_string_map_test func
-
-test.ssmap.mem: sorted_string_map_test
-	valgrind --tool=memcheck --leak-check=full ./sorted_string_map_test func
 
 test.stl: stlperf_test
 	./stlperf_test
@@ -241,12 +210,12 @@ install: $(HEADERS)
 	install -d $(DESTDIR)@docdir@
 	install -d $(DESTDIR)@datarootdir@
 	install -d $(DESTDIR)@datarootdir@/pkgconfig
-	install -m 644 @top_srcdir@/$(INCDIR)/mdds/*.hpp $(DESTDIR)@includedir@/mdds 
-	install -m 644 @top_srcdir@/$(INCDIR)/mdds/*.inl $(DESTDIR)@includedir@/mdds 
-	install -m 644 @top_srcdir@/$(INCDIR)/mdds/compat/*.hpp $(DESTDIR)@includedir@/mdds/compat 
-	install -m 644 @top_srcdir@/$(INCDIR)/mdds/hash_container/*.hpp $(DESTDIR)@includedir@/mdds/hash_container 
-	install -m 644 $(MISCDIR)/mdds.pc $(DESTDIR)@datarootdir@/pkgconfig 
-	install -m 644 @top_srcdir@/AUTHORS @top_srcdir@/COPYING @top_srcdir@/NEWS @top_srcdir@/README @top_srcdir@/VERSION $(DESTDIR)@docdir@ 
+	install -m 644 -t $(DESTDIR)@includedir@/mdds @top_srcdir@/$(INCDIR)/mdds/*.hpp
+	install -m 644 -t $(DESTDIR)@includedir@/mdds @top_srcdir@/$(INCDIR)/mdds/*.inl
+	install -m 644 -t $(DESTDIR)@includedir@/mdds/compat @top_srcdir@/$(INCDIR)/mdds/compat/*.hpp
+	install -m 644 -t $(DESTDIR)@includedir@/mdds/hash_container @top_srcdir@/$(INCDIR)/mdds/hash_container/*.hpp
+	install -m 644 -t $(DESTDIR)@datarootdir@/pkgconfig $(MISCDIR)/mdds.pc
+	install -m 644 -t $(DESTDIR)@docdir@ @top_srcdir@/AUTHORS @top_srcdir@/COPYING @top_srcdir@/NEWS @top_srcdir@/README @top_srcdir@/VERSION
 
 check: $(ALL_TESTS)
 

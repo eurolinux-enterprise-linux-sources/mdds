@@ -1,32 +1,19 @@
-# header-only library
-%global debug_package %{nil}
-
 Name: mdds
-Version: 0.12.1
-Release: 1%{?dist}
+Version: 0.8.1
+Release: 2%{?dist}
 Summary: A collection of multi-dimensional data structures and indexing algorithms
 
 Group: Development/Libraries
 License: MIT
-URL: https://gitlab.com/mdds/mdds
-Source0: http://kohei.us/files/%{name}/src/%{name}_%{version}.tar.bz2
+URL: http://code.google.com/p/multidimalgorithm/
+Source0: http://multidimalgorithm.googlecode.com/files/%{name}_%{version}.tar.bz2
 
 BuildRequires: boost-devel
 
-%description
-%{name} is a collection of multi-dimensional data structures and
-indexing algorithms.
-
-%package devel
-Group: Development/Libraries
-Summary: Headers for %{name}
 BuildArch: noarch
-Requires: boost-devel
-Provides: %{name}-static = %{version}-%{release}
 
-%description devel
-%{name} is a collection of multi-dimensional data structures and
-indexing algorithms.
+%description
+A collection of multi-dimensional data structures and indexing algorithms.
  
 It implements the following data structures:
 * segment tree
@@ -38,17 +25,29 @@ It implements the following data structures:
 
 See README for a brief description of the structures.
 
+%package devel
+Group: Development/Libraries
+Summary: Headers for %{name}
+Requires: boost-devel
+
+%description devel
+Headers for %{name}.
+
 %prep
-%autosetup -n %{name}_%{version} -p1
+%setup -q -n %{name}_%{version}
+# this is only used in tests
+sed -i -e '/^CPPFLAGS/s/-Wall.*-std/%{optflags} -std/' Makefile.in
 
 %build
 %configure
 
 %install
-install -d -m 0755 %{buildroot}/%{_includedir}/mdds
+mkdir -p %{buildroot}/%{_includedir}
+mkdir %{buildroot}/%{_includedir}/mdds
 cp -pr include/mdds/* %{buildroot}/%{_includedir}/mdds
-install -d -m 0755 %{buildroot}/%{_datadir}/pkgconfig
-install -p -m 0644 misc/%{name}.pc %{buildroot}/%{_datadir}/pkgconfig
+mkdir -p %{buildroot}/%{_datadir}
+mkdir %{buildroot}/%{_datadir}/pkgconfig
+cp -p misc/%{name}.pc %{buildroot}/%{_datadir}/pkgconfig
 
 %check
 make check %{?_smp_mflags}
@@ -56,19 +55,9 @@ make check %{?_smp_mflags}
 %files devel
 %{_includedir}/%{name}
 %{_datadir}/pkgconfig/%{name}.pc
-%doc AUTHORS NEWS README
-%license COPYING
+%doc AUTHORS COPYING NEWS README
 
 %changelog
-* Mon Feb 22 2016 David Tardon <dtardon@redhat.com> - 0.12.1-1
-- Resolves: rhbz#1290153 rebase to 0.12.1
-
-* Fri Aug 22 2014 David Tardon <dtardon@redhat.com> - 0.10.3-1
-- Resolves: rhbz#1132069 rebase to 0.10.3
-
-* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 0.8.1-3
-- Mass rebuild 2013-12-27
-
 * Mon Jun 10 2013 David Tardon <dtardon@redhat.com> - 0.8.1-2
 - trivial changes
 

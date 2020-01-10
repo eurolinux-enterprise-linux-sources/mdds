@@ -1,4 +1,4 @@
-AC_INIT(mdds, 0.12.1, kohei.yoshida@gmail.com)
+AC_INIT(mdds, 0.8.1, kohei.yoshida@gmail.com)
 
 VERSION=AC_PACKAGE_VERSION
 AC_SUBST(VERSION)
@@ -22,12 +22,6 @@ AC_ARG_WITH(hash-container,
                           Example:  --with-hash-container=boost],
 ,with_hash_container=c++0x)
 
-AC_ARG_ENABLE(debug-stdcxx,
-[
-  --enable-debug-stdcxx   Enable libstdc++ debug mode during make check.
-]
-,debug_stdcxx=yes)
-
 AC_MSG_CHECKING([hash container type])
 AC_MSG_RESULT([$with_hash_container])
 
@@ -49,16 +43,12 @@ elif test $with_hash_container = boost; then
   CPPFLAGS_NODEBUG="$CPPFLAGS_NODEBUG -DMDDS_HASH_CONTAINER_BOOST"
 fi
 
-CPPFLAGS="$CPPFLAGS $CPPFLAGS_NODEBUG -DMDDS_DEBUG_NODE_BASE -DMDDS_UNIT_TEST -std=c++0x"
-
-if test "$debug_stdcxx" = "yes"; then
-  CPPFLAGS="$CPPFLAGS -D_GLIBCXX_DEBUG"
-fi
-
+CPPFLAGS="$CPPFLAGS_NODEBUG -DMDDS_DEBUG_NODE_BASE -DMDDS_UNIT_TEST -std=c++0x"
 AC_SUBST(CPPFLAGS)
 AC_SUBST(CPPFLAGS_NODEBUG)
 
 AC_OUTPUT(Makefile)
 AC_OUTPUT(example/Makefile)
+AC_OUTPUT(misc/mdds.spec)
 AC_OUTPUT(misc/mdds.pc)
 AC_OUTPUT(VERSION)
