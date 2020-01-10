@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2008-2011 Kohei Yoshida
+ * Copyright (c) 2012 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,32 +25,20 @@
  *
  ************************************************************************/
 
-#ifndef __MDDS_GLOBAL_HPP__
-#define __MDDS_GLOBAL_HPP__
+#ifndef __MDDS_COMPAT_UNIQUE_PTR_HPP__
+#define __MDDS_COMPAT_UNIQUE_PTR_HPP__
 
-#include <exception>
-#include <string>
+#include "mdds/default_deleter.hpp"
+
+#include <boost/interprocess/smart_ptr/unique_ptr.hpp>
 
 namespace mdds {
 
-class general_error : public ::std::exception
+template<typename _T, typename _Deleter = default_deleter<_T> >
+class unique_ptr : public boost::interprocess::unique_ptr<_T, _Deleter>
 {
 public:
-    general_error(const ::std::string& msg) : m_msg(msg) {}
-    virtual ~general_error() throw() {}
-
-    virtual const char* what() const throw()
-    {
-        return m_msg.c_str();
-    }
-private:
-    ::std::string m_msg;
-};
-
-class invalid_arg_error : public general_error
-{
-public:
-    invalid_arg_error(const ::std::string& msg) : general_error(msg) {}
+    unique_ptr(_T* p) : boost::interprocess::unique_ptr<_T, _Deleter>(p) {}
 };
 
 }

@@ -96,7 +96,7 @@ double get_current_time()
     return *time64 / 10000000.0;
 #else
     timeval tv;
-    gettimeofday(&tv, nullptr);
+    gettimeofday(&tv, NULL);
     return tv.tv_sec + tv.tv_usec / 1000000.0;
 #endif
 }

@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012-2015 Kohei Yoshida
+ * Copyright (c) 2012-2013 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -30,8 +30,6 @@
 
 #include "multi_type_vector_types.hpp"
 
-#include <cstddef>
-
 namespace mdds { namespace __mtv {
 
 /**
@@ -52,7 +50,7 @@ struct iterator_value_node
     element_block_type* data;
 
     iterator_value_node(size_type start_pos, size_type block_index) :
-        type(mdds::mtv::element_type_empty), position(start_pos), size(0), data(nullptr), __private_data(block_index) {}
+        type(mdds::mtv::element_type_empty), position(start_pos), size(0), data(NULL), __private_data(block_index) {}
 
     iterator_value_node(const iterator_value_node& other) :
         type(other.type), position(other.position), size(other.size), data(other.data), __private_data(other.__private_data) {}
@@ -182,7 +180,7 @@ protected:
     {
         ++m_pos;
         if (m_pos == m_end)
-            return nullptr;
+            return NULL;
 
         update_node();
         return &m_cur_node;
@@ -295,18 +293,17 @@ public:
         return &m_cur_node;
     }
 
-    iterator_base& operator++()
+    value_type* operator++()
     {
         node_update_func::inc(m_cur_node);
-        inc();
-        return *this;
+        return inc();
     }
 
-    iterator_base& operator--()
+    value_type* operator--()
     {
-        dec();
+        value_type* ret = dec();
         node_update_func::dec(m_cur_node);
-        return *this;
+        return ret;
     }
 };
 
@@ -367,18 +364,17 @@ public:
         return &m_cur_node;
     }
 
-    const_iterator_base& operator++()
+    const value_type* operator++()
     {
         node_update_func::inc(m_cur_node);
-        inc();
-        return *this;
+        return inc();
     }
 
-    const_iterator_base& operator--()
+    const value_type* operator--()
     {
-        dec();
+        const value_type* ret = dec();
         node_update_func::dec(m_cur_node);
-        return *this;
+        return ret;
     }
 
     bool operator== (const const_iterator_base& other) const

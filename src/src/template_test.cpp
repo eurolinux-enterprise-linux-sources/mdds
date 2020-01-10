@@ -25,30 +25,17 @@
  *
  ************************************************************************/
 
-#include "mdds/segment_tree.hpp"
+#include "segment_tree.hpp"
 
 #include <string>
 
+using namespace std;
 using namespace mdds;
 
 struct test_data
 {
     ::std::string name;
 };
-
-namespace std
-{
-
-template<>
-struct hash<test_data>
-{
-    std::size_t operator()(const test_data &data) const
-    {
-        return hash<std::string>()(data.name);
-    }
-};
-
-}
 
 int main()
 {

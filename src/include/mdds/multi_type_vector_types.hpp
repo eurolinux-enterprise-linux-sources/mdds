@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012-2016 Kohei Yoshida
+ * Copyright (c) 2012 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,17 +29,15 @@
 #define MDDS_MULTI_TYPE_VECTOR_TYPES_HPP
 
 #include "default_deleter.hpp"
+#include "compat/unique_ptr.hpp"
 #include "global.hpp"
-
-#include <algorithm>
-#include <cassert>
-#include <memory>
 
 #ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
 #include <deque>
 #else
 #include <vector>
 #endif
+#include <boost/noncopyable.hpp>
 
 #if defined(MDDS_UNIT_TEST) || defined (MDDS_MULTI_TYPE_VECTOR_DEBUG)
 #include <iostream>
@@ -151,11 +149,6 @@ public:
         return get(block).m_array.at(pos);
     }
 
-    static typename store_type::size_type size(const base_element_block& block)
-    {
-        return get(block).m_array.size();
-    }
-
     static iterator begin(base_element_block& block)
     {
         return get(block).m_array.begin();
@@ -232,11 +225,6 @@ public:
         val = get(blk).m_array[pos];
     }
 
-    static value_type get_value(const base_element_block& blk, size_t pos)
-    {
-        return get(blk).m_array[pos];
-    }
-
     static void append_value(base_element_block& blk, const _Data& val)
     {
         get(blk).m_array.push_back(val);
@@ -260,13 +248,7 @@ public:
 
     static void resize_block(base_element_block& blk, size_t new_size)
     {
-        store_type& st = get(blk).m_array;
-        st.resize(new_size);
-
-        // Test if the vector's capacity is larger than twice its current
-        // size, and if so, shrink its capacity to free up some memory.
-        if (new_size < (st.capacity() / 2))
-            st.shrink_to_fit();
+        static_cast<_Self&>(blk).m_array.resize(new_size);
     }
 
 #ifdef MDDS_UNIT_TEST
@@ -396,23 +378,6 @@ public:
         blk.insert(blk.begin()+pos, it_begin, it_end);
     }
 
-    static size_t capacity(const base_element_block& block)
-    {
-#ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
-        return 0;
-#else
-        const store_type& blk = get(block).m_array;
-        return blk.capacity();
-#endif
-    }
-
-    static void shrink_to_fit(base_element_block& block)
-    {
-#ifndef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
-        get(block).m_array.shrink_to_fit();
-#endif
-    }
-
 private:
     static std::pair<const_iterator,const_iterator>
     get_iterator_pair(const store_type& array, size_t begin_pos, size_t len)
@@ -443,13 +408,12 @@ public:
 
     static _Self* clone_block(const base_element_block& blk)
     {
-        // Use copy constructor to copy the data.
         return new _Self(get(blk));
     }
 };
 
 template<typename _Self, element_t _TypeId, typename _Data>
-class noncopyable_element_block : public element_block<_Self, _TypeId, _Data>
+class noncopyable_element_block : public element_block<_Self, _TypeId, _Data>, private boost::noncopyable
 {
     typedef element_block<_Self,_TypeId,_Data> base_type;
 protected:
@@ -461,9 +425,6 @@ protected:
     noncopyable_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
 
 public:
-    noncopyable_element_block(const noncopyable_element_block&) = delete;
-    noncopyable_element_block& operator=(const noncopyable_element_block&) = delete;
-
     static _Self* clone_block(const base_element_block&)
     {
         throw element_block_error("attempted to clone a noncopyable element block.");
@@ -556,7 +517,7 @@ struct managed_element_block : public copyable_element_block<managed_element_blo
         if (init_size > 1)
             throw general_error("You can't create a managed block with initial value.");
 
-        std::unique_ptr<self_type> blk = make_unique<self_type>(init_size);
+        unique_ptr<self_type> blk(new self_type(init_size));
         if (init_size == 1)
             set_value(*blk, 0, val);
 
@@ -605,7 +566,7 @@ struct noncopyable_managed_element_block : public noncopyable_element_block<nonc
         if (init_size > 1)
             throw general_error("You can't create a managed block with initial value.");
 
-        std::unique_ptr<self_type> blk = make_unique<self_type>(init_size);
+        unique_ptr<self_type> blk(new self_type(init_size));
         if (init_size == 1)
             set_value(*blk, 0, val);
 

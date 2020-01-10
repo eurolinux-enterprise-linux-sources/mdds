@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2010-2017 Kohei Yoshida
+ * Copyright (c) 2010-2014 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,22 +28,8 @@
 namespace mdds {
 
 template<typename _Key, typename _Value>
-typename flat_segment_tree<_Key, _Value>::const_segment_iterator
-flat_segment_tree<_Key, _Value>::begin_segment() const
-{
-    return const_segment_iterator(m_left_leaf.get(), m_left_leaf->next.get());
-}
-
-template<typename _Key, typename _Value>
-typename flat_segment_tree<_Key, _Value>::const_segment_iterator
-flat_segment_tree<_Key, _Value>::end_segment() const
-{
-    return const_segment_iterator(m_right_leaf.get(), nullptr);
-}
-
-template<typename _Key, typename _Value>
 flat_segment_tree<_Key, _Value>::flat_segment_tree(key_type min_val, key_type max_val, value_type init_val) :
-    m_root_node(nullptr),
+    m_root_node(NULL),
     m_left_leaf(new node),
     m_right_leaf(new node),
     m_init_val(init_val),
@@ -60,14 +46,14 @@ flat_segment_tree<_Key, _Value>::flat_segment_tree(key_type min_val, key_type ma
     // We don't ever use the value of the right leaf node, but we need the
     // value to be always the same, to make it easier to check for
     // equality.
-    m_right_leaf->value_leaf.value = init_val;
+    m_right_leaf->value_leaf.value = ::std::numeric_limits<value_type>::max();
 }
 
 template<typename _Key, typename _Value>
 flat_segment_tree<_Key, _Value>::flat_segment_tree(const flat_segment_tree<_Key, _Value>& r) :
-    m_root_node(nullptr),
+    m_root_node(NULL),
     m_left_leaf(new node(static_cast<const node&>(*r.m_left_leaf))),
-    m_right_leaf(static_cast<node*>(nullptr)),
+    m_right_leaf(static_cast<node*>(NULL)),
     m_init_val(r.m_init_val),
     m_valid_tree(false) // tree is invalid because we only copy the leaf nodes.
 {
@@ -144,9 +130,21 @@ template<typename _Key, typename _Value>
 ::std::pair<typename flat_segment_tree<_Key, _Value>::const_iterator, bool>
 flat_segment_tree<_Key, _Value>::insert_segment_impl(key_type start_key, key_type end_key, value_type val, bool forward)
 {
-    typedef std::pair<typename flat_segment_tree<_Key, _Value>::const_iterator, bool> ret_type;
+    typedef ::std::pair<typename flat_segment_tree<_Key, _Value>::const_iterator, bool> ret_type;
 
-    if (!adjust_segment_range(start_key, end_key))
+    if (end_key < m_left_leaf->value_leaf.key || start_key > m_right_leaf->value_leaf.key)
+        // The new segment does not overlap the current interval.
+        return ret_type(const_iterator(this, true), false);
+
+    if (start_key < m_left_leaf->value_leaf.key)
+        // The start value should not be smaller than the current minimum.
+        start_key = m_left_leaf->value_leaf.key;
+
+    if (end_key > m_right_leaf->value_leaf.key)
+        // The end value should not be larger than the current maximum.
+        end_key = m_right_leaf->value_leaf.key;
+
+    if (start_key >= end_key)
         return ret_type(const_iterator(this, true), false);
 
     // Find the node with value that either equals or is greater than the
@@ -325,12 +323,6 @@ flat_segment_tree<_Key, _Value>::insert(
     {
         // Specified position is already past the start key position.  Not good.
         return insert_front(start_key, end_key, val);
-    }
-
-    if (!adjust_segment_range(start_key, end_key))
-    {
-        typedef std::pair<typename flat_segment_tree<_Key, _Value>::const_iterator, bool> ret_type;
-        return ret_type(const_iterator(this, true), false);
     }
 
     p = get_insertion_pos_leaf(start_key, p);
@@ -633,7 +625,7 @@ flat_segment_tree<_Key, _Value>::search_tree(
     // Current node must be a non-leaf whose child nodes are leaf nodes.
     assert(cur_node->left->is_leaf && cur_node->right->is_leaf);
 
-    const node* dest_node = nullptr;
+    const node* dest_node = NULL;
     const node* leaf_left = static_cast<const node*>(cur_node->left);
     const node* leaf_right = static_cast<const node*>(cur_node->right);
     key_type key1 = leaf_left->value_leaf.key;
@@ -691,8 +683,7 @@ void flat_segment_tree<_Key, _Value>::build_tree()
 }
 
 template<typename _Key, typename _Value>
-typename flat_segment_tree<_Key, _Value>::size_type
-flat_segment_tree<_Key, _Value>::leaf_size() const
+size_t flat_segment_tree<_Key, _Value>::leaf_size() const
 {
     return __st::count_leaf_nodes(m_left_leaf.get(), m_right_leaf.get());
 }
@@ -704,7 +695,7 @@ bool flat_segment_tree<_Key, _Value>::operator==(const flat_segment_tree<key_typ
     const node* n2 = r.m_left_leaf.get();
 
     if ((!n1 && n2) || (n1 && !n2))
-        // Either one of them is nullptr;
+        // Either one of them is NULL;
         return false;
 
     while (n1)
@@ -720,7 +711,7 @@ bool flat_segment_tree<_Key, _Value>::operator==(const flat_segment_tree<key_typ
     }
 
     if (n2)
-        // n1 is nullptr, but n2 is not.
+        // n1 is NULL, but n2 is not.
         return false;
 
     // All leaf nodes are equal.
@@ -742,7 +733,7 @@ flat_segment_tree<_Key, _Value>::get_insertion_pos_leaf_reverse(
         }
         cur_node = cur_node->prev.get();
     }
-    return nullptr;
+    return NULL;
 }
 
 template<typename _Key, typename _Value>
@@ -759,7 +750,7 @@ flat_segment_tree<_Key, _Value>::get_insertion_pos_leaf(key_type key, const node
         }
         cur_node = cur_node->next.get();
     }
-    return nullptr;
+    return NULL;
 }
 
 template<typename _Key, typename _Value>
@@ -768,29 +759,7 @@ flat_segment_tree<_Key, _Value>::destroy()
 {
     disconnect_leaf_nodes(m_left_leaf.get(), m_right_leaf.get());
     m_nonleaf_node_pool.clear();
-    m_root_node = nullptr;
-}
-
-template<typename _Key, typename _Value>
-bool flat_segment_tree<_Key, _Value>::adjust_segment_range(key_type& start_key, key_type& end_key) const
-{
-    if (start_key >= end_key)
-        // Invalid order of segment range.
-        return false;
-
-    if (end_key < m_left_leaf->value_leaf.key || start_key > m_right_leaf->value_leaf.key)
-        // The new segment does not overlap the current interval.
-        return false;
-
-    if (start_key < m_left_leaf->value_leaf.key)
-        // The start value should not be smaller than the current minimum.
-        start_key = m_left_leaf->value_leaf.key;
-
-    if (end_key > m_right_leaf->value_leaf.key)
-        // The end value should not be larger than the current maximum.
-        end_key = m_right_leaf->value_leaf.key;
-
-    return true;
+    m_root_node = NULL;
 }
 
 }

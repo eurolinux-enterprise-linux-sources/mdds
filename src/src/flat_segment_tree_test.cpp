@@ -30,7 +30,6 @@
 
 #include <list>
 #include <iostream>
-#include <string>
 #include <vector>
 #include <limits>
 #include <iterator>
@@ -1929,209 +1928,67 @@ void fst_test_assignment()
     assert(!db3.is_tree_valid());
 }
 
-void fst_test_non_numeric_value()
-{
-    stack_printer __stack_printer__("::fst_test_non_numeric_value");
-
-    typedef flat_segment_tree<int, std::string> db_type;
-    db_type db(0, 4, "42");
-    db.insert_back(1, 2, "hello world");
-
-    assert(db.default_value() == "42");
-
-    std::string result;
-    db.search(1, result);
-
-    assert(result == "hello world");
-
-    db_type db2(db);
-
-    assert(db == db2);
-}
-
-void fst_test_insert_out_of_bound()
-{
-    stack_printer __stack_printer__("::fst_test_insert_out_of_bound");
-
-    typedef flat_segment_tree<int, bool> db_type;
-    db_type db(0, 10, false);
-
-    // An out-of-bound range, whether it's in part or in its entirety, should
-    // be handled gracefully without throwing exceptions or causing segfaults.
-
-    // ranges that are entirely out-of-bound.
-
-    auto ret = db.insert_front(-10, -8, false);
-    assert(!ret.second);
-    db.insert_back(12, 13, false);
-    assert(!ret.second);
-
-    db_type::const_iterator pos = db.end();
-
-    ret = db.insert(pos, -10, -8, false);
-    assert(!ret.second);
-    pos = ret.first;
-
-    ret = db.insert(pos, 12, 13, false);
-    assert(!ret.second);
-    pos = ret.first;
-
-    // partial overflows.
-
-    ret = db.insert(pos, -2, 2, true);
-    assert(ret.second); // content modified
-    pos = ret.first;
-
-    ret = db.insert(pos, 8, 20, true);
-    assert(ret.second); // content modified
-    pos = ret.first;
-}
-
-void fst_test_segment_iterator()
-{
-    stack_printer __stack_printer__("::fst_test_segment_iterator");
-
-    typedef flat_segment_tree<int16_t, bool> db_type;
-    db_type db(0, 100, false);
-
-    db_type::const_segment_iterator it = db.begin_segment();
-    db_type::const_segment_iterator ite = db.end_segment();
-
-    assert(it != ite);
-    assert(it->start == 0);
-    assert(it->end == 100);
-    assert(it->value == false);
-
-    const auto& v = *it;
-    assert(v.start == 0);
-    assert(v.end == 100);
-    assert(v.value == false);
-
-    ++it;
-    assert(it == ite);
-
-    --it;
-    assert(it != ite);
-    assert(it->start == 0);
-    assert(it->end == 100);
-    assert(it->value == false);
-
-    db_type::const_segment_iterator it2; // default constructor
-    it2 = it; // assignment operator
-    assert(it2 == it);
-    assert(it2->start == 0);
-    assert(it2->end == 100);
-    assert(it2->value == false);
-
-    auto it3(it2); // copy constructor
-    assert(it3 == it2);
-    assert(it3->start == 0);
-    assert(it3->end == 100);
-    assert(it3->value == false);
-
-    db.insert_back(20, 50, true); // this invalidates the iterators.
-
-    it = db.begin_segment();
-    ite = db.end_segment();
-
-    assert(it->start == 0);
-    assert(it->end == 20);
-    assert(it->value == false);
-
-    it2 = it++; // post-increment
-
-    assert(it2->start == 0);
-    assert(it2->end == 20);
-    assert(it2->value == false);
-
-    assert(it->start == 20);
-    assert(it->end == 50);
-    assert(it->value == true);
-
-    ++it;
-    assert(it->start == 50);
-    assert(it->end == 100);
-    assert(it->value == false);
-
-    ++it;
-    assert(it == ite);
-
-    it2 = it--; // post-decrement.
-    assert(it2 == ite);
-}
-
 int main (int argc, char **argv)
 {
-    try
-    {
-        cmd_options opt;
-        if (!parse_cmd_options(argc, argv, opt))
-            return EXIT_FAILURE;
-
-        if (opt.test_func)
-        {
-            fst_test_equality();
-            fst_test_copy_ctor();
-            fst_test_back_insert();
-            {
-                typedef unsigned int   key_type;
-                typedef unsigned short value_type;
-                for (value_type i = 0; i <= 100; ++i)
-                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
-            }
-
-            {
-                typedef int   key_type;
-                typedef short value_type;
-                for (value_type i = 0; i <= 100; ++i)
-                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
-            }
-
-            {
-                typedef long         key_type;
-                typedef unsigned int value_type;
-                for (value_type i = 0; i <= 100; ++i)
-                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
-            }
-
-            fst_test_leaf_search();
-            fst_test_tree_build();
-            fst_test_tree_search();
-            fst_test_insert_search_mix();
-            fst_test_shift_left();
-            fst_test_shift_left_right_edge();
-            fst_test_shift_left_append_new_segment();
-            fst_test_shift_right_init0();
-            fst_test_shift_right_init999();
-            fst_test_shift_right_bool();
-            fst_test_shift_right_skip_start_node();
-            fst_test_shift_right_all_nodes();
-            fst_test_const_iterator();
-            fst_test_insert_iterator();
-            fst_test_insert_state_changed();
-            fst_test_position_search();
-            fst_test_min_max_default();
-            fst_test_swap();
-            fst_test_clear();
-            fst_test_assignment();
-            fst_test_non_numeric_value();
-            fst_test_insert_out_of_bound();
-            fst_test_segment_iterator();
-        }
-
-        if (opt.test_perf)
-        {
-            fst_perf_test_search_leaf();
-            fst_perf_test_search_tree();
-            fst_perf_test_insert_front_back();
-            fst_perf_test_insert_position();
-            fst_perf_test_position_search();
-        }
-    }
-    catch (const std::exception& e)
-    {
-        fprintf(stdout, "Test failed: %s\n", e.what());
+    cmd_options opt;
+    if (!parse_cmd_options(argc, argv, opt))
         return EXIT_FAILURE;
+
+    if (opt.test_func)
+    {
+        fst_test_equality();
+        fst_test_copy_ctor();
+        fst_test_back_insert();
+        {
+            typedef unsigned int   key_type;
+            typedef unsigned short value_type;
+            for (value_type i = 0; i <= 100; ++i)
+                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+        }
+
+        {
+            typedef int   key_type;
+            typedef short value_type;
+            for (value_type i = 0; i <= 100; ++i)
+                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+        }
+
+        {
+            typedef long         key_type;
+            typedef unsigned int value_type;
+            for (value_type i = 0; i <= 100; ++i)
+                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+        }
+
+        fst_test_leaf_search();
+        fst_test_tree_build();
+        fst_test_tree_search();
+        fst_test_insert_search_mix();
+        fst_test_shift_left();
+        fst_test_shift_left_right_edge();
+        fst_test_shift_left_append_new_segment();
+        fst_test_shift_right_init0();
+        fst_test_shift_right_init999();
+        fst_test_shift_right_bool();
+        fst_test_shift_right_skip_start_node();
+        fst_test_shift_right_all_nodes();
+        fst_test_const_iterator();
+        fst_test_insert_iterator();
+        fst_test_insert_state_changed();
+        fst_test_position_search();
+        fst_test_min_max_default();
+        fst_test_swap();
+        fst_test_clear();
+        fst_test_assignment();
+    }
+
+    if (opt.test_perf)
+    {
+        fst_perf_test_search_leaf();
+        fst_perf_test_search_tree();
+        fst_perf_test_insert_front_back();
+        fst_perf_test_insert_position();
+        fst_perf_test_position_search();
     }
 
     fprintf(stdout, "Test finished successfully!\n");

@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2011-2016 Kohei Yoshida
+ * Copyright (c) 2011-2014 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,6 +29,7 @@
 #define MDDS_MULTI_TYPE_VECTOR_HPP
 
 #include "default_deleter.hpp"
+#include "compat/unique_ptr.hpp"
 #include "global.hpp"
 #include "multi_type_vector_types.hpp"
 #include "multi_type_vector_itr.hpp"
@@ -36,9 +37,9 @@
 #include <vector>
 #include <algorithm>
 #include <cassert>
-#include <sstream>
 
 #if defined(MDDS_UNIT_TEST) || defined (MDDS_MULTI_TYPE_VECTOR_DEBUG)
+#include <sstream>
 #include <iostream>
 using std::cout;
 using std::cerr;
@@ -47,52 +48,14 @@ using std::endl;
 
 namespace mdds {
 
-namespace detail {
-
 /**
- * Empty event function handler structure, used when no custom function
- * handler is specified.
- *
- * @see mdds::multi_type_vector
+ * Multi-type vector consists of a series of blocks, and each block stores a
+ * series of non-empty elements of identical type.  In this container,
+ * elements are represented simply as values that they store; there are no
+ * separate element objects that the user of this container needs to deal
+ * with.  The user accesses directly with the raw values.
  */
-struct mtv_event_func
-{
-    void element_block_acquired(const mdds::mtv::base_element_block* /*block*/) {}
-
-    void element_block_released(const mdds::mtv::base_element_block* /*block*/) {}
-};
-
-template<typename T>
-T mtv_advance_position(const T& pos, int steps);
-
-}
-
-/**
- * Multi-type vector consists of a series of one or more blocks, and each
- * block may either be empty, or stores a series of non-empty elements of
- * identical type.  These blocks collectively represent a single logical
- * one-dimensional array that may store elements of different types.  It is
- * guaranteed that the block types of neighboring blocks are always
- * different.
- *
- * Structurally, the primary array stores block instances whose types
- * are of <code>value_type</code>, which in turn consists of the following
- * data members:
- *
- * <ul>
- * <li><code>type</code> which indicates the block type,</li>
- * <li><code>position</code> which stores the logical position of the
- * first element of the block,</li>
- * <li><code>size</code> which stores the logical size of the block,
- * and</li>
- * <li><code>data</code> which stores the pointer to a secondary array
- * (a.k.a. element block) which stores the actual element values, or
- * <code>nullptr</code> in case the block represents an empty segment.</li>
- * </ul>
- *
- * @see mdds::multi_type_vector::value_type
- */
-template<typename _ElemBlockFunc, typename _EventFunc = detail::mtv_event_func>
+template<typename _ElemBlockFunc>
 class multi_type_vector
 {
 public:
@@ -101,25 +64,6 @@ public:
     typedef typename mdds::mtv::base_element_block element_block_type;
     typedef typename mdds::mtv::element_t element_category_type;
     typedef _ElemBlockFunc element_block_func;
-
-    /**
-     * Optional event handler function structure, whose functions get called
-     * at specific events.  The following events are currently supported:
-     *
-     * <ul>
-     * <li><code>element_block_acquired</code> - this gets called whenever
-     * the container acquires a new element block either as a result of a new
-     * element block creation or a tranfer of an existing
-     * element block from another container.</li>
-     * <li><code>element_block_released</code> - this gets called whenever
-     * the container releases an existing element block either because
-     * the block gets deleted or gets transferred to another container.</li>
-     * </ul>
-     *
-     * @see mdds::detail::mtv_event_func for the precise function signatures
-     *      of the event handler functions.
-     */
-    typedef _EventFunc event_func;
 
 private:
 
@@ -192,21 +136,6 @@ public:
     typedef __mtv::const_iterator_base<const_iterator_trait, itr_forward_update, iterator> const_iterator;
     typedef __mtv::const_iterator_base<const_reverse_iterator_trait, itr_no_update, reverse_iterator> const_reverse_iterator;
 
-    /**
-     * value_type is the type of a block stored in the primary array.  It
-     * consists of the following data members:
-     *
-     * <ul>
-     * <li><code>type</code> which indicates the block type,</li>
-     * <li><code>position</code> which stores the logical position of the
-     * first element of the block,</li>
-     * <li><code>size</code> which stores the logical size of the block,
-     * and</li>
-     * <li><code>data</code> which stores the pointer to a secondary array
-     * (a.k.a. element block) which stores the actual element values, or
-     * <code>nullptr</code> in case the block represents an empty segment.</li>
-     * </ul>
-     */
     typedef itr_node value_type;
 
     typedef std::pair<iterator, size_type> position_type;
@@ -223,17 +152,6 @@ public:
     static position_type next_position(const position_type& pos);
 
     /**
-     * Increment or decrement the position object by specified steps. Caller
-     * must ensure the the position object is valid.
-     *
-     * @param pos position object.
-     * @param steps steps to advance the position object.
-     *
-     * @return position object that points to the new logical position.
-     */
-    static position_type advance_position(const position_type& pos, int steps);
-
-    /**
      * Move the position object to the next logical position.  Caller must
      * ensure the the position object is valid.
      *
@@ -242,17 +160,6 @@ public:
      * @return position object that points to the next logical position.
      */
     static const_position_type next_position(const const_position_type& pos);
-
-    /**
-     * Increment or decrement the position object by specified steps. Caller
-     * must ensure the the position object is valid.
-     *
-     * @param pos position object.
-     * @param steps steps to advance the position object.
-     *
-     * @return position object that points to the new logical position.
-     */
-    static const_position_type advance_position(const const_position_type& pos, int steps);
 
     /**
      * Extract the logical position from a position object.
@@ -287,64 +194,23 @@ public:
     const_reverse_iterator rbegin() const;
     const_reverse_iterator rend() const;
 
-    event_func& event_handler();
-    const event_func& event_handler() const;
-
     /**
      * Default constructor.  It initializes the container with empty size.
      */
     multi_type_vector();
 
     /**
-     * Constructor that takes an lvalue reference to an event handler object.
-     * The event handler instance will be copy-constructed.
-     *
-     * @param hdl lvalue reference to an event handler object.
-     */
-    multi_type_vector(const event_func& hdl);
-
-    /**
-     * Constructor that takes an rvalue reference to an event handler object.
-     * The event handler instance will be move-constructed.
-     *
-     * @param hdl rvalue reference to an event handler object.
-     */
-    multi_type_vector(event_func&& hdl);
-
-    /**
      * Constructor that takes initial size of the container.  When the size
      * specified is greater than 0, it initializes the container with empty
      * elements.
      *
-     * @param init_size initial container size.
+     * @param init_row_size initial container size
      */
     multi_type_vector(size_type init_size);
 
-    /**
-     * Constructor that takes initial size of the container and an element
-     * value to initialize the elements to. When the size specified is greater
-     * than 0, it initializes the container with elements that are copies of
-     * the value specified.
-     *
-     * @param init_size initial container size.
-     * @param value initial element value.
-     */
     template<typename _T>
     multi_type_vector(size_type init_size, const _T& value);
 
-    /**
-     * Constructor that takes initial size of the container and begin and end
-     * iterator positions that specify a series of elements to initialize the
-     * container to.  The container will contain copies of the elements
-     * specified after this call returns.
-     *
-     * @param init_size initial container size.
-     * @param it_begin iterator that points to the begin position of the
-     *                 values the container is being initialized to.
-     * @param it_end iterator that points to the end position of the values
-     *               the container is being initialized to.  The end position
-     *               is <i>not</i> inclusive.
-                                                                              */
     template<typename _T>
     multi_type_vector(size_type init_size, const _T& it_begin, const _T& it_end);
 
@@ -592,10 +458,9 @@ public:
 
     /**
      * Return the value of an element at specified position and set that
-     * position empty.  If the element resides in a managed element block,
-     * this call will release that element from that block.  If the element is
-     * on a non-managed element block, this call is equivalent to
-     * set_empty(pos, pos).
+     * position empty.  If the element resides in a managed block, this call
+     * will release that element from that block.  If the element is on a
+     * non-managed block, this call is equivalent to set_empty(pos, pos).
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * the specified position is outside the current container range.</p>
@@ -609,10 +474,9 @@ public:
 
     /**
      * Retrieve the value of an element at specified position and set that
-     * position empty.  If the element resides in a managed element block,
-     * this call will release that element from that block.  If the element is
-     * on a non-managed element block, this call is equivalent to
-     * set_empty(pos, pos).
+     * position empty.  If the element resides in a managed block, this call
+     * will release that element from that block.  If the element is on a
+     * non-managed block, this call is equivalent to set_empty(pos, pos).
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * the specified position is outside the current container range.</p>
@@ -628,10 +492,9 @@ public:
 
     /**
      * Retrieve the value of an element at specified position and set that
-     * position empty.  If the element resides in a managed element block,
-     * this call will release that element from that block.  If the element is
-     * on a non-managed element block, this call is equivalent to
-     * set_empty(pos, pos).
+     * position empty.  If the element resides in a managed block, this call
+     * will release that element from that block.  If the element is on a
+     * non-managed block, this call is equivalent to set_empty(pos, pos).
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * the specified position is outside the current container range.</p>
@@ -647,19 +510,18 @@ public:
 
     /**
      * Release all its elements, and empties its content.  Calling this method
-     * relinquishes the ownership of all elements stored in managed element
-     * blocks if any.
+     * relinquishes the ownership of all elements stored in managed blocks.
      *
      * <p>This call is equivalent of clear() if the container consists of no
-     * managed element blocks.</p>
+     * managed blocks.</p>
      */
     void release();
 
     /**
      * Make all elements within specified range empty, and relinquish the
      * ownership of the elements in that range.  All elements in the managed
-     * element blocks within the range will be released and the container will
-     * no longer manage their life cycles after the call.
+     * blocks within the range will be released and the container will no
+     * longer manage their life cycles after the call.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * either the starting or the ending position is outside the current
@@ -675,8 +537,8 @@ public:
     /**
      * Make all elements within specified range empty, and relinquish the
      * ownership of the elements in that range.  All elements in the managed
-     * element blocks within the range will be released and the container will
-     * no longer manage their life cycles after the call.
+     * blocks within the range will be released and the container will no
+     * longer manage their life cycles after the call.
      *
      * <p>This variant takes an iterator as an additional parameter, which is
      * used as a block position hint to speed up the lookup of the first block
@@ -707,9 +569,8 @@ public:
      * the specified position is outside the current container range.</p>
      *
      * @param pos logical position of the element.
-     * @return position object that stores an iterator referencing the element
-     *         block where the element resides, and its offset within that
-     *         block.
+     * @return iterator referencing the block where the element resides, and
+     *         its offset within the block.
      */
     position_type position(size_type pos);
 
@@ -725,31 +586,29 @@ public:
      *                 which block to start when searching for the element
      *                 position.
      * @param pos logical position of the element.
-     * @return position object that stores an iterator referencing the element
-     *         block where the element resides, and its offset within that
-     *         block.
+     * @return iterator referencing the block where the element resides, and
+     *         its offset within the block.
      */
     position_type position(const iterator& pos_hint, size_type pos);
 
     /**
-     * Given the logical position of an element, get an iterator referencing
-     * the element block where the element is located, and its offset from the
-     * first element of that block.
+     * Given the logical position of an element, get the iterator of the block
+     * where the element is located, and its offset from the first element of
+     * that block.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * the specified position is outside the current container range.</p>
      *
      * @param pos position of the element.
-     * @return position object that stores an iterator referencing the element
-     *         block where the element resides, and its offset within that
-     *         block.
+     * @return iterator referencing the block where the element resides, and
+     *         its offset within the block.
      */
     const_position_type position(size_type pos) const;
 
     /**
-     * Given the logical position of an element, get an iterator referencing
-     * the element block where the element is located, and its offset from the
-     * first element of that block.
+     * Given the logical position of an element, get the iterator of the block
+     * where the element is located, and its offset from the first element of
+     * that block.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * the specified position is outside the current container range.</p>
@@ -758,25 +617,23 @@ public:
      *                 which block to start when searching for the element
      *                 position.
      * @param pos logical position of the element.
-     * @return position object that stores an iterator referencing the element
-     *         block where the element resides, and its offset within the
-     *         block.
+     * @return iterator referencing the block where the element resides, and
+     *         its offset within the block.
      */
     const_position_type position(const const_iterator& pos_hint, size_type pos) const;
 
     /**
      * Move elements from one container to another. After the move, the
-     * segment where the elements were in the source container becomes empty.
-     * When transferring managed elements, this call transfers ownership of
-     * the moved elements to the destination container.  The moved elements
-     * will overwrite any existing elements in the destination range of the
-     * receiving container. Transfer of elements within the same container is
-     * not allowed.
+     * segment where the elements were in the original container becomes
+     * empty.  When transferring managed elements, this call transfers
+     * ownership of the moved elements to the new container.  The moved
+     * elements will overwrite any existing elements in the destination range.
+     * Transfer of elements within the same container is not allowed.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
-     * either the starting or the ending position is greater than or equal to
-     * the source container size, or the destination container is not
-     * large enough to accommodate the transferred elements.</p>
+     * either the starting or the ending position is outside the current
+     * container size, or the destination container is not large enough to
+     * accommodate the transferred elements.</p>
      *
      * @param start_pos starting position
      * @param end_pos ending position, inclusive.
@@ -792,17 +649,16 @@ public:
 
     /**
      * Move elements from one container to another. After the move, the
-     * segment where the elements were in the source container becomes empty.
-     * When transferring managed elements, this call transfers ownership of
-     * the moved elements to the new container.  The moved elements will
-     * overwrite any existing elements in the destination range of the
-     * receiving container. Transfer of elements within the same container is
-     * not allowed.
+     * segment where the elements were in the original container becomes
+     * empty.  When transferring managed elements, this call transfers
+     * ownership of the moved elements to the new container.  The moved
+     * elements will overwrite any existing elements in the destination range.
+     * Transfer of elements within the same container is not allowed.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
-     * either the starting or the ending position is greater than or equal to
-     * the source container size, or the destination container is not large
-     * enough to accommodate the transferred elements.</p>
+     * either the starting or the ending position is outside the current
+     * container size, or the destination container is not large enough to
+     * accommodate the transferred elements.</p>
      *
      * @param pos_hint iterator used as a block position hint, to specify
      *                 which block to start when searching for the blocks
@@ -832,8 +688,7 @@ public:
      * Check if element at specified position is empty of not.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
-     * the specified position is outside the current container
-     * range.</p>
+     * the specified position is outside the current container range.</p>
      *
      * @param pos position of the element to check.
      *
@@ -889,8 +744,7 @@ public:
 
     /**
      * Erase elements located between specified start and end positions. The
-     * end positions are both inclusive.  Those elements originally located
-     * after the specified end position will get shifted up after the erasure.
+     * end positions are both inclusive.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * either the starting or the ending position is outside the current
@@ -905,9 +759,7 @@ public:
     void erase(size_type start_pos, size_type end_pos);
 
     /**
-     * Insert a range of empty elements at specified position.  Those elements
-     * originally located after the insertion position will get shifted down
-     * after the insertion.
+     * Insert a range of empty elements at specified position.
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception if
      * either the specified position is outside the current container
@@ -925,9 +777,7 @@ public:
     iterator insert_empty(size_type pos, size_type length);
 
     /**
-     * Insert a range of empty elements at specified position.  Those elements
-     * originally located after the insertion position will get shifted down
-     * after the insertion.
+     * Insert a range of empty elements at specified position.
      *
      * <p>This variant takes an iterator as an additional parameter, which is
      * used as a block position hint to speed up the lookup of the block in
@@ -974,21 +824,18 @@ public:
     size_type size() const;
 
     /**
-     * Return the current number of blocks in the primary array.  Each
-     * non-empty block stores a secondary block that stores elements in a
-     * contiguous region in memory (element block) and the number of elements
-     * it stores.  An empty block only stores its logical size and does not
-     * store an actual element block.
+     * Return the current number of data blocks.  Each data block stores a
+     * series of contiguous elements of identical type.  A series of empty
+     * elements is also represented by a separate data block.
      *
      * <p>For instance, if the container stores values of double-precision
      * type at rows 0 to 2, values of std::string type at 3 to 7, and empty
-     * values at 8 to 10, it would consist of three blocks: one that stores
-     * double values, one that stores std::string values, and one that
-     * represents the empty value range in this exact order.  In this specific
-     * scenario, <code>block_size()</code> returns 3, and <code>size()</code>
-     * returns 11.</p>
+     * values at 8 to 10, it consists of 3 data blocks: one that stores double
+     * values, one that stores std::string values, and one that represents the
+     * empty value range. In this specific scenario, <code>block_size()</code>
+     * returns 3, and <code>size()</code> returns 11.</p>
      *
-     * @return current number of blocks in the primary array.
+     * @return current number of data blocks.
      */
     size_type block_size() const;
 
@@ -1025,11 +872,6 @@ public:
      */
     void swap(size_type start_pos, size_type end_pos, multi_type_vector& other, size_type other_pos);
 
-    /**
-     * Trim excess capacity from all non-empty blocks.
-     */
-    void shrink_to_fit();
-
     bool operator== (const multi_type_vector& other) const;
     bool operator!= (const multi_type_vector& other) const;
 
@@ -1052,29 +894,6 @@ public:
 #endif
 
 private:
-
-    /**
-     * Delete only the element block owned by an outer block.
-     *
-     * @param p pointer to the instance of an outer block that may own an
-     *          element block instance.
-     */
-    void delete_element_block(block* p);
-
-    /**
-     * Delete an outer block.
-     *
-     * @param p pointer to the instance of an outer block to delete.
-     */
-    void delete_block(block* p);
-
-    /**
-     * Delete one or more outer blocks in the specified iterator ranges.
-     *
-     * @param it start position.
-     * @param it_end end position (not inclusive).
-     */
-    void delete_blocks(typename blocks_type::iterator it, typename blocks_type::iterator it_end);
 
     template<typename _T>
     iterator set_impl(size_type pos, size_type start_row, size_type block_index, const _T& value);
@@ -1110,7 +929,7 @@ private:
     void get_block_position(const const_iterator& pos_hint, size_type pos, size_type& start_pos, size_type& block_index) const;
 
     template<typename _T>
-    void create_new_block_with_new_cell(element_block_type*& data, const _T& cell);
+    static void create_new_block_with_new_cell(element_block_type*& data, const _T& cell);
 
     template<typename _T>
     iterator set_cell_to_middle_of_block(
@@ -1164,7 +983,7 @@ private:
         size_type start_pos_in_block1, size_type block_index1, size_type start_pos_in_block2, size_type block_index2,
         size_type start_pos_in_dblock1, size_type dblock_index1, size_type start_pos_in_dblock2, size_type dblock_index2);
 
-    void swap_single_block(
+    void swap_single_blocks(
         multi_type_vector& other, size_type start_pos, size_type end_pos, size_type other_pos,
         size_type start_pos_in_block, size_type block_index, size_type start_pos_in_other_block, size_type other_block_index);
 
@@ -1177,8 +996,6 @@ private:
         multi_type_vector& other, size_type start_pos, size_type end_pos, size_type other_pos,
         size_type start_pos_in_block1, size_type block_index1, size_type start_pos_in_block2, size_type block_index2,
         size_type start_pos_in_dblock1, size_type dblock_index1, size_type start_pos_in_dblock2, size_type dblock_index2);
-
-    void insert_blocks_at(size_type insert_pos, blocks_type& new_blocks);
 
     void prepare_blocks_to_transfer(blocks_to_transfer& bucket, size_type block_index1, size_type offset1, size_type block_index2, size_type offset2);
 
@@ -1282,14 +1099,6 @@ private:
         size_type block_index, size_type offset, size_type new_block_size, bool overwrite);
 
     block* get_previous_block_of_type(size_type block_index, element_category_type cat);
-
-    /**
-     * @param block_index index of the current block.
-     * @param cat desired block type.
-     *
-     * @return pointer to the next block if the next block exists and it's of
-     *         specified type, otherwise nullptr will be returned.
-     */
     block* get_next_block_of_type(size_type block_index, element_category_type cat);
 
     /**
@@ -1334,7 +1143,6 @@ private:
     }
 
 private:
-    event_func m_hdl_event;
     blocks_type m_blocks;
     size_type m_cur_size;
 };

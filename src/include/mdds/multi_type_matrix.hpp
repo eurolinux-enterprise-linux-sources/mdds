@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012-2016 Kohei Yoshida
+ * Copyright (c) 2012 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -46,46 +46,33 @@ namespace mtm {
  */
 enum element_t
 {
-    element_empty   = mdds::mtv::element_type_empty,
+    element_empty = mdds::mtv::element_type_empty,
     element_boolean = mdds::mtv::element_type_boolean,
-    element_string  = mdds::mtv::element_type_string,
-    element_numeric = mdds::mtv::element_type_numeric,
-    element_integer = mdds::mtv::element_type_int
+    element_string = mdds::mtv::element_type_string,
+    element_numeric = mdds::mtv::element_type_numeric
 };
 
-/**
- * Default matrix trait that uses std::string as its string type.
- */
 struct std_string_trait
 {
-    typedef mdds::mtv::int_element_block integer_element_block;
+    typedef std::string string_type;
     typedef mdds::mtv::string_element_block string_element_block;
-
     typedef mdds::mtv::element_block_func element_block_func;
+
+    static const mdds::mtv::element_t string_type_identifier = mdds::mtv::element_type_string;
 };
 
 }
 
-/**
- * Matrix that can store numeric, integer, boolean, empty and string types.
- * The string and integer types can be specified in the matrix trait
- * template parameter. To use std::string as the string type and int as the
- * integer type, use mdds::mtm::std_string_trait.
- */
-template<typename _MtxTrait>
+template<typename _StringTrait>
 class multi_type_matrix
 {
-    typedef _MtxTrait matrix_trait;
+    typedef _StringTrait string_trait;
 public:
-    typedef typename matrix_trait::string_element_block string_block_type;
-    typedef typename matrix_trait::integer_element_block integer_block_type;
-
-    typedef typename string_block_type::value_type string_type;
-    typedef typename integer_block_type::value_type integer_type;
+    typedef typename string_trait::string_type string_type;
     typedef size_t      size_type;
 
 private:
-    typedef mdds::multi_type_vector<typename matrix_trait::element_block_func> store_type;
+    typedef mdds::multi_type_vector<typename string_trait::element_block_func> store_type;
 
 public:
     typedef typename store_type::position_type position_type;
@@ -95,6 +82,7 @@ public:
 
     typedef typename mtv::boolean_element_block boolean_block_type;
     typedef typename mtv::numeric_element_block numeric_block_type;
+    typedef typename string_trait::string_element_block string_block_type;
 
     struct size_pair_type
     {
@@ -109,45 +97,31 @@ public:
 
     struct element_block_node_type
     {
-        friend class multi_type_matrix;
-
         mtm::element_t type;
-        size_type offset;
         size_type size;
         const element_block_type* data;
 
-        element_block_node_type();
-        element_block_node_type(const element_block_node_type& other);
-
-        template<typename _Blk>
-        typename _Blk::const_iterator begin() const;
-
-        template<typename _Blk>
-        typename _Blk::const_iterator end() const;
-
-    private:
-        void assign(const const_position_type& pos, size_type section_size);
+        element_block_node_type() : type(mtm::element_empty), size(0), data(NULL) {}
+        element_block_node_type(const element_block_node_type& other) :
+            type(other.type), size(other.size), data(other.data) {}
     };
 
     static mtm::element_t to_mtm_type(mdds::mtv::element_t mtv_type)
     {
         switch (mtv_type)
         {
-            case string_block_type::block_type:
+            case string_trait::string_type_identifier:
                 return mdds::mtm::element_string;
-            case integer_block_type::block_type:
-                return mdds::mtm::element_integer;
             case mdds::mtv::element_type_numeric:
             case mdds::mtv::element_type_boolean:
             case mdds::mtv::element_type_empty:
                 // These types share the same numeric values.
                 return static_cast<mtm::element_t>(mtv_type);
             default:
-                throw type_error("multi_type_matrix: unknown element type.");
+                throw general_error("multi_type_matrix: unknown element type.");
         }
     }
 
-private:
     template<typename _Func>
     struct walk_func : std::unary_function<typename store_type::const_iterator::value_type, void>
     {
@@ -164,7 +138,6 @@ private:
         }
     };
 
-public:
     /**
      * Move to the next logical position. The movement is in the top-to-bottom
      * then left-to-right direction.
@@ -193,45 +166,17 @@ public:
     multi_type_matrix();
 
     /**
-     * Construct a matrix of specified size.
-     *
-     * @param rows size of rows.
-     * @param cols size of columns.
+     * Construct a matrix of specified size with specified density type.
      */
     multi_type_matrix(size_type rows, size_type cols);
 
-    /**
-     * Construct a matrix of specified size and initialize all its elements
-     * with specified value.
-     *
-     * @param rows size of rows.
-     * @param cols size of columns.
-     * @param value value to initialize all its elements with.
-     */
     template<typename _T>
     multi_type_matrix(size_type rows, size_type cols, const _T& value);
 
-    /**
-     * Construct a matrix of specified size and initialize its elements with
-     * specified values.
-     *
-     * @param rows size of rows.
-     * @param cols size of columns.
-     * @param it_begin iterator that points to the value of the first element.
-     * @param it_end iterator that points to the position after the last
-     *               element value.
-     */
     template<typename _T>
     multi_type_matrix(size_type rows, size_type cols, const _T& it_begin, const _T& it_end);
 
-    /**
-     * Copy constructor.
-     */
     multi_type_matrix(const multi_type_matrix& r);
-
-    /**
-     * Destructor.
-     */
     ~multi_type_matrix();
 
     bool operator== (const multi_type_matrix& other) const;
@@ -301,14 +246,14 @@ public:
      *
      * @return 0-based row and column positions.
      */
-    size_pair_type matrix_position(const const_position_type& pos) const;
+    size_pair_type matrix_position(const const_position_type& pos);
 
     /**
      * Return a position type that represents an end position.  This can be
      * used to compare with another position object to see if it is past the
      * last element position.
      *
-     * @return end position object.
+     * @return end position object
      */
     position_type end_position();
 
@@ -317,7 +262,7 @@ public:
      * used to compare with another position object to see if it is past the
      * last element position.
      *
-     * @return end position object.
+     * @return end position object
      */
     const_position_type end_position() const;
 
@@ -363,31 +308,6 @@ public:
      * @return numeric representation of the element.
      */
     double get_numeric(const const_position_type& pos) const;
-
-    /**
-     * Get an integer representation of the element.  If the element is of
-     * integer type, its value is returned.  If it's of boolean type, either 1
-     * or 0 is returned depending on whether it's true or false.  If it's of
-     * empty or string type, 0 is returned.
-     *
-     * @param row row position of the element.
-     * @param col column position of the element.
-     *
-     * @return integer representation of the element.
-     */
-    integer_type get_integer(size_type row, size_type col) const;
-
-    /**
-     * Get an integer representation of the element.  If the element is of
-     * integer type, its value is returned.  If it's of boolean type, either 1
-     * or 0 is returned depending on whether it's true or false.  If it's of
-     * empty or string type, 0 is returned.
-     *
-     * @param pos position object of an element
-     *
-     * @return integer representation of the element.
-     */
-    integer_type get_integer(const const_position_type& pos) const;
 
     /**
      * Get a boolean representation of the element.  If the element is of
@@ -469,106 +389,26 @@ public:
      * Set element referenced by the position object empty.
      *
      * @param pos position object that references element.
-     *
-     * @return position of the element that has just been made empty.
      */
     position_type set_empty(const position_type& pos);
 
-    /**
-     * Set the entire column empty.
-     *
-     * @param col index of the column to empty.
-     */
     void set_column_empty(size_type col);
-
-    /**
-     * Set the entire row empty.
-     *
-     * @param row index of the row to empty.
-     */
     void set_row_empty(size_type row);
 
-    /**
-     * Set a numeric value to an element at specified position.
-     *
-     * @param row row index of the element.
-     * @param col column index of the element.
-     * @param val new value to set.
-     */
     void set(size_type row, size_type col, double val);
-
-    /**
-     * Set a numeric value to an element at specified position.
-     *
-     * @param pos position of the element to update.
-     * @param val new value to set.
-     *
-     * @return position of the element block where the new value has been set.
-     */
     position_type set(const position_type& pos, double val);
 
-    /**
-     * Set a boolean value to an element at specified position.
-     *
-     * @param row row index of the element.
-     * @param col column index of the element.
-     * @param val new value to set.
-     */
     void set(size_type row, size_type col, bool val);
-
-    /**
-     * Set a boolean value to an element at specified position.
-     *
-     * @param pos position of the element to update.
-     * @param val new value to set.
-     *
-     * @return position of the element where the new value has been set.
-     */
     position_type set(const position_type& pos, bool val);
 
-    /**
-     * Set a string value to an element at specified position.
-     *
-     * @param row row index of the element.
-     * @param col column index of the element.
-     * @param val new value to set.
-     */
     void set(size_type row, size_type col, const string_type& str);
-
-    /**
-     * Set a string value to an element at specified position.
-     *
-     * @param pos position of the element to update.
-     * @param val new value to set.
-     *
-     * @return position of the element block where the new value has been set.
-     */
     position_type set(const position_type& pos, const string_type& str);
-
-    /**
-     * Set an integer value to an element at specified position.
-     *
-     * @param row row index of the element.
-     * @param col column index of the element.
-     * @param val new value to set.
-     */
-    void set(size_type row, size_type col, integer_type val);
-
-    /**
-     * Set an integer value to an element at specified position.
-     *
-     * @param pos position of the element to update.
-     * @param val new value to set.
-     *
-     * @return position of the element block where the new value has been set.
-     */
-    position_type set(const position_type& pos, integer_type val);
 
     /**
      * Set values of multiple elements at once, starting at specified element
      * position following the direction of columns.  When the new value series
-     * does not fit in the first column, it gets wrapped into the next
-     * column(s).
+     * does not fit in the column of the start element, it gets wrapped into
+     * the next column(s).
      *
      * <p>The method will throw an <code>std::out_of_range</code> exception
      * if the specified position is outside the current container range.</p>
@@ -583,20 +423,6 @@ public:
     template<typename _T>
     void set(size_type row, size_type col, const _T& it_begin, const _T& it_end);
 
-    /**
-     * Set values of multiple elements at once, starting at specified element
-     * position following the direction of columns.  When the new value series
-     * does not fit in the first column, it gets wrapped into the next
-     * column(s).
-     *
-     * @param pos position of the first element.
-     * @param it_begin iterator that points to the begin position of the
-     *                 values being set.
-     * @param it_end iterator that points to the end position of the values
-     *               being set.
-     *
-     * @return position of the first element that has been modified.
-     */
     template<typename _T>
     position_type set(const position_type& pos, const _T& it_begin, const _T& it_end);
 
@@ -637,23 +463,9 @@ public:
      * passed matrix instance is larger, then only the elements within the
      * size of this matrix instance will get copied.
      *
-     * @param src passed matrix object to copy element values from.
+     * @param r passed matrix object to copy element values from.
      */
-    void copy(const multi_type_matrix& src);
-
-    /**
-     * Copy values from an array or array-like container, to a specified
-     * sub-matrix range.  The length of the array must match the number of
-     * elements in the destination range, else it will throw a
-     * mdds::size_error.
-     *
-     * @param rows row size of the destination range.
-     * @param cols column size of the destination range.
-     * @param it_begin iterator pointing to the beginning of the input array.
-     * @param it_end iterator pointing to the end position of the input array.
-     */
-    template<typename _T>
-    void copy(size_type rows, size_type cols, const _T& it_begin, const _T& it_end);
+    void copy(const multi_type_matrix& r);
 
     /**
      * Resize the matrix to specified size.  This method supports resizing to
@@ -714,59 +526,6 @@ public:
     template<typename _Func>
     void walk(_Func& func) const;
 
-    /**
-     * Walk through the element blocks in a sub-matrix range defined by start
-     * and end positions passed to this method.
-     *
-     * @param func function object whose operator() gets called on the
-     *              element block.
-     *
-     * @param start the column/row position of the upper-left corner of the
-     *              sub-matrix.
-     *
-     * @param end the column/row position of the lower-right corner of the
-     *          sub-matrix.  Both column and row must be greater or equal to
-     *          those of the start position.
-     */
-    template<typename _Func>
-    void walk(_Func& func, const size_pair_type& start, const size_pair_type& end) const;
-
-    /**
-     * Walk through all element blocks in parallel with another matrix
-     * instance.  It stops at the block boundaries of both matrix instances
-     * during the walk.
-     *
-     * @param func function object whose operator() gets called on each
-     *             element block.
-     *
-     * @param right another matrix instance to parallel-walk with.
-     */
-    template<typename _Func>
-    void walk(_Func& func, const multi_type_matrix& right) const;
-
-    /**
-     * Walk through the element blocks in a sub-matrix range in parallel with
-     * another matrix instance. It stops at the block boundaries of both
-     * matrix instances during the walk.  The sub-matrix range is defined by
-     * start and end positions passed to this method.
-     *
-     * @param func function object whose operator() gets called on each
-     *             element block.
-     *
-     * @param right another matrix instance to parallel-walk with.
-     *
-     * @param start the column/row position of the upper-left corner of the
-     *              sub-matrix.
-     *
-     * @param end the column/row position of the lower-right corner of the
-     *          sub-matrix.  Both column and row must be greater or equal to
-     *          those of the start position.
-     */
-    template<typename _Func>
-    void walk(_Func& func, const multi_type_matrix& right,
-        const size_pair_type& start, const size_pair_type& end) const;
-
-
 #ifdef MDDS_MULTI_TYPE_MATRIX_DEBUG
     void dump() const
     {
@@ -779,7 +538,7 @@ private:
     /**
      * Get an array position of the data referenced by the row and column
      * indices.  The array consists of multiple columns, the content of column
-     * 0 followed by the content of column 1, and so on.  <b>Note that no
+     * 0 followded by the content of column 1, and so on.  <b>Note that no
      * boundary check is performed in this method.</b>
      *
      * @param row 0-based row index.
@@ -795,6 +554,8 @@ private:
     {
         return pos.first->position + pos.second;
     }
+
+    void copy_store(store_type& dest, size_type rows, size_type cols) const;
 
 private:
     store_type m_store;

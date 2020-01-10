@@ -1,7 +1,7 @@
 /*************************************************************************
  *
- * Copyright (c) 2008-2011 Kohei Yoshida
- *
+ * Copyright (c) 2010 Kohei Yoshida
+ * 
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -10,10 +10,10 @@
  * copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following
  * conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -25,34 +25,21 @@
  *
  ************************************************************************/
 
-#ifndef __MDDS_GLOBAL_HPP__
-#define __MDDS_GLOBAL_HPP__
+#ifndef __MDDS_HASH_CONTAINER_MAP_HPP__
+#define __MDDS_HASH_CONTAINER_MAP_HPP__
 
-#include <exception>
-#include <string>
-
-namespace mdds {
-
-class general_error : public ::std::exception
-{
-public:
-    general_error(const ::std::string& msg) : m_msg(msg) {}
-    virtual ~general_error() throw() {}
-
-    virtual const char* what() const throw()
-    {
-        return m_msg.c_str();
-    }
-private:
-    ::std::string m_msg;
-};
-
-class invalid_arg_error : public general_error
-{
-public:
-    invalid_arg_error(const ::std::string& msg) : general_error(msg) {}
-};
-
-}
+#if defined (MDDS_HASH_CONTAINER_STLPORT)
+// stlport
+#include <hash_map>
+#define _mdds_unordered_map_type ::std::hash_map
+#elif defined (MDDS_HASH_CONTAINER_BOOST)
+// boost
+#include <boost/unordered_map.hpp>
+#define _mdds_unordered_map_type ::boost::unordered_map
+#else
+// c++0x
+#include <unordered_map>
+#define _mdds_unordered_map_type ::std::unordered_map
+#endif
 
 #endif

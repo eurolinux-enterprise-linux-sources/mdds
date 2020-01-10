@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012-2016 Kohei Yoshida
+ * Copyright (c) 2012-2013 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -66,8 +66,10 @@ MDDS_MTV_DEFINE_ELEMENT_CALLBACKS(custom_string, element_type_custom_string, cus
 
 struct custom_string_trait
 {
-    typedef mdds::mtv::int_element_block integer_element_block;
+    typedef custom_string string_type;
     typedef custom_string_block string_element_block;
+
+    static const mdds::mtv::element_t string_type_identifier = element_type_custom_string;
 
     typedef mtv::custom_block_func1<string_element_block> element_block_func;
 };
@@ -290,86 +292,6 @@ void mtm_test_data_insertion_multiple()
         assert(mtx.get_numeric(1, 2) == 3.2);
         assert(mtx.get_numeric(2, 2) == 3.3);
         assert(mtx.get_type(0, 3) == mtm::element_empty);
-    }
-}
-
-void mtm_test_data_insertion_integer()
-{
-    stack_printer __stack_printer__("::mtm_test_data_insertion_integer");
-
-    // +--------+--------+
-    // |  int   | double |
-    // +--------+--------+
-    // | double |  int   |
-    // +--------+--------+
-
-    mtx_type mtx(2, 2);
-    mtx.set(0, 0, int(0));
-    mtx.set(1, 1, int(22));
-    mtx.set(0, 1, double(10));
-    mtx.set(1, 0, double(22));
-
-    assert(mtx.get_type(0, 0) == mtm::element_integer);
-    assert(mtx.get_type(1, 1) == mtm::element_integer);
-    assert(mtx.get_type(0, 1) == mtm::element_numeric);
-    assert(mtx.get_type(1, 0) == mtm::element_numeric);
-
-    assert(mtx.get_integer(0, 0) == 0);
-    assert(mtx.get_integer(1, 1) == 22);
-    assert(mtx.get_integer(0, 1) == 10);
-    assert(mtx.get_integer(1, 0) == 22);
-
-    assert(mtx.get_numeric(0, 0) == 0.0);
-    assert(mtx.get_numeric(1, 1) == 22.0);
-    assert(mtx.get_numeric(0, 1) == 10.0);
-    assert(mtx.get_numeric(1, 0) == 22.0);
-
-    assert(mtx.get_boolean(0, 0) == false);
-    assert(mtx.get_boolean(1, 1) == true);
-    assert(mtx.get_boolean(0, 1) == true);
-    assert(mtx.get_boolean(1, 0) == true);
-
-    assert(mtx.numeric());  // integers are considered numeric.
-
-    assert(mtx.get<int>(0, 0) == 0);
-    assert(mtx.get<int>(1, 1) == 22);
-
-    mtx_type::position_type pos = mtx.position(0, 1);
-    mtx.set(pos, int(987));
-    assert(mtx.get<int>(0, 1) == 987);
-
-    // +--------+--------+
-    // |  int   |  int   |
-    // +--------+--------+
-    // | double |  int   |
-    // +--------+--------+
-
-    vector<mtx_type::element_block_node_type> nodes;
-
-    std::function<void(const mtx_type::element_block_node_type&)> f =
-        [&nodes](const mtx_type::element_block_node_type& node)
-        {
-            nodes.push_back(node);
-        };
-
-    mtx.walk(f);
-
-    assert(nodes.size() == 3);
-    assert(nodes[0].type == mtm::element_integer);
-    assert(nodes[0].size == 1);
-    assert(nodes[1].type == mtm::element_numeric);
-    assert(nodes[1].size == 1);
-    assert(nodes[2].type == mtm::element_integer);
-    assert(nodes[2].size == 2);
-
-    {
-        auto it  = nodes[2].begin<mtx_type::integer_block_type>();
-        auto ite = nodes[2].end<mtx_type::integer_block_type>();
-        assert(*it == 987);
-        ++it;
-        assert(*it == 22);
-        ++it;
-        assert(it == ite);
     }
 }
 
@@ -609,101 +531,6 @@ void mtm_test_copy()
     assert(success);
 }
 
-void mtm_test_copy_empty_destination()
-{
-    stack_printer __stack_printer__("::mtm_test_copy_empty_destination");
-
-    mtx_type mx1, mx2(1, 1);
-    mx1.copy(mx2); // This should not throw.
-
-    mx2.copy(mx1); // This should not throw either.
-}
-
-void mtm_test_copy_from_array()
-{
-    stack_printer __stack_printer__("::mtm_test_copy_from_array");
-
-    vector<double> src;
-    src.reserve(9);
-    for (size_t i = 0; i < 9; ++i)
-        src.push_back(i);
-
-    mtx_type mx(4, 4);
-    mx.copy(3, 3, src.begin(), src.end());
-
-    assert(mx.get<double>(0, 0) == 0.0);
-    assert(mx.get<double>(1, 0) == 1.0);
-    assert(mx.get<double>(2, 0) == 2.0);
-    assert(mx.get<double>(0, 1) == 3.0);
-    assert(mx.get<double>(1, 1) == 4.0);
-    assert(mx.get<double>(2, 1) == 5.0);
-    assert(mx.get<double>(0, 2) == 6.0);
-    assert(mx.get<double>(1, 2) == 7.0);
-    assert(mx.get<double>(2, 2) == 8.0);
-    assert(mx.get_type(3, 0) == mtm::element_empty);
-    assert(mx.get_type(3, 1) == mtm::element_empty);
-    assert(mx.get_type(3, 2) == mtm::element_empty);
-    assert(mx.get_type(3, 3) == mtm::element_empty);
-    assert(mx.get_type(0, 3) == mtm::element_empty);
-    assert(mx.get_type(1, 3) == mtm::element_empty);
-    assert(mx.get_type(2, 3) == mtm::element_empty);
-    assert(mx.get_type(3, 3) == mtm::element_empty);
-
-    vector<std::string> src2;
-    src2.reserve(4);
-    src2.push_back("A");
-    src2.push_back("B");
-    src2.push_back("C");
-    src2.push_back("D");
-
-    mx.copy(2, 2, src2.begin(), src2.end());
-
-    assert(mx.get<std::string>(0, 0) == "A");
-    assert(mx.get<std::string>(1, 0) == "B");
-    assert(mx.get<std::string>(0, 1) == "C");
-    assert(mx.get<std::string>(1, 1) == "D");
-    assert(mx.get<double>(2, 0) == 2.0);
-    assert(mx.get<double>(2, 1) == 5.0);
-    assert(mx.get<double>(0, 2) == 6.0);
-    assert(mx.get<double>(1, 2) == 7.0);
-    assert(mx.get<double>(2, 2) == 8.0);
-    assert(mx.get_type(3, 0) == mtm::element_empty);
-    assert(mx.get_type(3, 1) == mtm::element_empty);
-    assert(mx.get_type(3, 2) == mtm::element_empty);
-    assert(mx.get_type(3, 3) == mtm::element_empty);
-    assert(mx.get_type(0, 3) == mtm::element_empty);
-    assert(mx.get_type(1, 3) == mtm::element_empty);
-    assert(mx.get_type(2, 3) == mtm::element_empty);
-    assert(mx.get_type(3, 3) == mtm::element_empty);
-
-    vector<bool> src3;
-    src3.push_back(true);
-    src3.push_back(false);
-    src3.push_back(true);
-    src3.push_back(false);
-
-    mx.copy(4, 1, src3.begin(), src3.end());
-    assert(mx.get<bool>(0, 0) == true);
-    assert(mx.get<bool>(1, 0) == false);
-    assert(mx.get<bool>(2, 0) == true);
-    assert(mx.get<bool>(3, 0) == false);
-
-    // Try to copy from an array of invalid type.
-    vector<char> src_invalid;
-    src_invalid.push_back('a');
-    src_invalid.push_back('b');
-
-    try
-    {
-        mx.copy(2, 1, src_invalid.begin(), src_invalid.end());
-        assert(!"type_error did not get thrown.");
-    }
-    catch (const mdds::type_error& e)
-    {
-        cout << "expected exception was thrown: '" << e.what() << "'" << endl;
-    }
-}
-
 void mtm_test_assignment()
 {
     stack_printer __stack_printer__("::mtm_test_assignment");
@@ -744,6 +571,69 @@ void mtm_test_numeric()
     // Empty matrix is not numeric.
     mtx.clear();
     assert(!mtx.numeric());
+}
+
+template<typename _T>
+struct print_element : std::unary_function<_T, void>
+{
+    void operator() (const _T& v) const
+    {
+        cout << v << endl;
+    }
+};
+
+class walk_element_block : std::unary_function<mtx_type::element_block_node_type, void>
+{
+public:
+    void operator() (const mtx_type::element_block_node_type& node)
+    {
+        switch (node.type)
+        {
+            case mtm::element_boolean:
+            {
+                mtx_type::boolean_block_type::const_iterator it = mtx_type::boolean_block_type::begin(*node.data);
+                mtx_type::boolean_block_type::const_iterator it_end = mtx_type::boolean_block_type::end(*node.data);
+                std::for_each(it, it_end, print_element<bool>());
+            }
+            break;
+            case mtm::element_string:
+            {
+                mtx_type::string_block_type::const_iterator it = mtx_type::string_block_type::begin(*node.data);
+                mtx_type::string_block_type::const_iterator it_end = mtx_type::string_block_type::end(*node.data);
+                std::for_each(it, it_end, print_element<mtx_type::string_type>());
+            }
+            break;
+            case mtm::element_numeric:
+            {
+                mtx_type::numeric_block_type::const_iterator it = mtx_type::numeric_block_type::begin(*node.data);
+                mtx_type::numeric_block_type::const_iterator it_end = mtx_type::numeric_block_type::end(*node.data);
+                std::for_each(it, it_end, print_element<double>());
+            }
+            break;
+            case mtm::element_empty:
+                cout << "- empty block -" << endl;
+            break;
+            default:
+                ;
+        }
+    }
+};
+
+void mtm_test_walk()
+{
+    stack_printer __stack_printer__("::mtm_test_walk");
+    mtx_type mtx(12, 1); // single column matrix to make it easier.
+    mtx.set(2, 0, 1.1);
+    mtx.set(3, 0, 1.2);
+    mtx.set(4, 0, 1.3);
+    mtx.set(5, 0, 1.4);
+    mtx.set(7, 0, string("A"));
+    mtx.set(8, 0, string("B"));
+    mtx.set(9, 0, string("C"));
+    mtx.set(10, 0, false);
+    mtx.set(11, 0, true);
+    walk_element_block func;
+    mtx.walk(func);
 }
 
 void mtm_test_custom_string()
@@ -1079,44 +969,34 @@ void mtm_perf_test_insert_via_position_object()
 
 int main (int argc, char **argv)
 {
-    try
-    {
-        cmd_options opt;
-        if (!parse_cmd_options(argc, argv, opt))
-            return EXIT_FAILURE;
-
-        if (opt.test_func)
-        {
-            mtm_test_construction();
-            mtm_test_data_insertion();
-            mtm_test_data_insertion_multiple();
-            mtm_test_data_insertion_integer();
-            mtm_test_set_empty();
-            mtm_test_swap();
-            mtm_test_transpose();
-            mtm_test_resize();
-            mtm_test_copy();
-            mtm_test_copy_empty_destination();
-            mtm_test_copy_from_array();
-            mtm_test_assignment();
-            mtm_test_numeric();
-            mtm_test_custom_string();
-            mtm_test_position();
-            mtm_test_set_data_via_position();
-        }
-
-        if (opt.test_perf)
-        {
-            mtm_perf_test_storage_creation();
-            mtm_perf_test_storage_set_numeric();
-            mtm_perf_test_iterate_elements();
-            mtm_perf_test_insert_via_position_object();
-        }
-    }
-    catch (const std::exception& e)
-    {
-        fprintf(stdout, "Test failed: %s\n", e.what());
+    cmd_options opt;
+    if (!parse_cmd_options(argc, argv, opt))
         return EXIT_FAILURE;
+
+    if (opt.test_func)
+    {
+        mtm_test_construction();
+        mtm_test_data_insertion();
+        mtm_test_data_insertion_multiple();
+        mtm_test_set_empty();
+        mtm_test_swap();
+        mtm_test_transpose();
+        mtm_test_resize();
+        mtm_test_copy();
+        mtm_test_assignment();
+        mtm_test_numeric();
+        mtm_test_walk();
+        mtm_test_custom_string();
+        mtm_test_position();
+        mtm_test_set_data_via_position();
+    }
+
+    if (opt.test_perf)
+    {
+        mtm_perf_test_storage_creation();
+        mtm_perf_test_storage_set_numeric();
+        mtm_perf_test_iterate_elements();
+        mtm_perf_test_insert_via_position_object();
     }
 
     cout << "Test finished successfully!" << endl;

@@ -1,32 +1,20 @@
 # header-only library
 %global debug_package %{nil}
 
-%global apiversion 1.2
-
 Name: mdds
-Version: 1.2.3
+Version: 0.10.3
 Release: 1%{?dist}
 Summary: A collection of multi-dimensional data structures and indexing algorithms
 
+Group: Development/Libraries
 License: MIT
-URL: https://gitlab.com/mdds/mdds
-Source0: http://kohei.us/files/%{name}/src/%{name}-%{version}.tar.bz2
+URL: http://code.google.com/p/multidimalgorithm/
+Source0: http://kohei.us/files/%{name}/src/%{name}_%{version}.tar.bz2
 
 BuildRequires: boost-devel
 
 %description
-%{name} is a collection of multi-dimensional data structures and
-indexing algorithms.
-
-%package devel
-Summary: Headers for %{name}
-BuildArch: noarch
-Requires: boost-devel
-Provides: %{name}-static = %{version}-%{release}
-
-%description devel
-%{name} is a collection of multi-dimensional data structures and
-indexing algorithms.
+A collection of multi-dimensional data structures and indexing algorithms.
  
 It implements the following data structures:
 * segment tree
@@ -36,34 +24,41 @@ It implements the following data structures:
 * multi type matrix
 * multi type vector
 
-See README.md for a brief description of the structures.
+See README for a brief description of the structures.
+
+%package devel
+Group: Development/Libraries
+Summary: Headers for %{name}
+BuildArch: noarch
+Requires: boost-devel
+Provides: %{name}-static = %{version}-%{release}
+
+%description devel
+Headers for %{name}.
 
 %prep
-%autosetup -p1
+%setup -q -n %{name}_%{version}
+# this is only used in tests
+sed -i -e '/^CPPFLAGS_NODEBUG=/s/=.*/="%{optflags}"/' configure
 
 %build
 %configure
 
 %install
-%make_install
-rm -rf %{buildroot}%{_docdir}/%{name}
+install -d -m 0755 %{buildroot}/%{_includedir}/mdds
+cp -pr include/mdds/* %{buildroot}/%{_includedir}/mdds
+install -d -m 0755 %{buildroot}/%{_datadir}/pkgconfig
+install -p -m 0644 misc/%{name}.pc %{buildroot}/%{_datadir}/pkgconfig
 
 %check
 make check %{?_smp_mflags}
 
 %files devel
-%{_includedir}/%{name}-%{apiversion}
-%{_datadir}/pkgconfig/%{name}-%{apiversion}.pc
-%doc AUTHORS NEWS README.md
-%license COPYING
+%{_includedir}/%{name}
+%{_datadir}/pkgconfig/%{name}.pc
+%doc AUTHORS COPYING NEWS README
 
 %changelog
-* Mon Sep 18 2017 David Tardon <dtardon@redhat.com> - 1.2.3-1
-- Resolves: rhbz#1477097 rebase to 1.2.3
-
-* Mon Feb 22 2016 David Tardon <dtardon@redhat.com> - 0.12.1-1
-- Resolves: rhbz#1290153 rebase to 0.12.1
-
 * Fri Aug 22 2014 David Tardon <dtardon@redhat.com> - 0.10.3-1
 - Resolves: rhbz#1132069 rebase to 0.10.3
 
