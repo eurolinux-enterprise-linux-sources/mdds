@@ -1,3 +1,235 @@
+mdds 1.0.0
+
+* all
+
+  * introduced API versioning to ease parallel installation of API
+    incompatible versions.  Version 1.0.0 will have an API versoin of
+    1.0.
+
+  * C++11 is now a hard requirement.
+
+  * added API documentation via Doxygen, Sphinx and Breathe.
+
+* mixed_type_matrix
+
+  * officially removed for good in favor of multi_type_matrix.
+
+* multi_type_vector
+
+  * added memory usage reduction by conditionally shrinking the
+    capacity of the underlying vector containers.
+
+  * added slight performance gain by revising block adjustment policy
+    during splitting of blocks.
+
+* sorted_string_map
+
+  * fixed a bug where a non-matching key was incorrectly returned as a
+    matching key.
+
+mdds 0.12.1
+
+* flat_segment_tree
+
+  * removed construction-from-int requirement from value_type to allow
+    non-numeric types to be stored.
+
+* multi_type_vector
+
+  * added static method advance_position() to allow incrementing or
+    decrementing the logical position of a position_type object:
+
+    * position_type advance_position(const position_type& pos, int steps)
+
+mdds 0.12.0
+
+* segment_tree
+
+  * removed pointer requirement from value_type to allow non-pointer
+    type to be stored.
+
+* multi_type_vector
+
+  * fixed a bug in the equality operator method.
+
+mdds 0.11.2
+
+* multi_type_vector
+
+  * fixed various memory leaks associated with the set() method when a
+    value overwrites an existing element in a managed block.
+
+mdds 0.11.1
+
+* all
+
+  * fixed a large number of outstanding defects reported by Coverity
+    Scan.
+
+* multi_type_vector
+
+  * fixed 2 cases of double-free bug in the variant of swap() that
+    allows segmented swapping.
+
+mdds 0.11.0
+
+* sorted_string_map (new)
+
+  * new data structure to support efficient mapping of textural keys
+    to numeric values when the key values are known at compile time.
+
+* multi_type_vector
+
+  * fixed a bug in transfer() where two adjacent blocks of identical
+    type would fail to be merged in some circumstances.
+
+  * added shrink_to_fit() to allow trimming of any excess capacity
+    from all non-empty blocks.
+
+  * fixed a double-free bug in the variant of swap() that allows
+    segmented swapping.
+
+  * improved the exception message when the block position lookup
+    fails to find valid block position, to make it easier to debug.
+
+mdds 0.10.3
+
+* multi_type_vector
+
+  * added 2 variants of release_range() that take start and end positions,
+    to allow releasing of elements in specified interval.  One of the
+    variants takes iterator as a block position hint.
+
+    * iterator release_range(size_type start_pos, size_type end_pos)
+
+    * iterator release_range(const iterator& pos_hint, size_type start_pos, size_type end_pos)
+
+  * added push_back() and push_back_empty(), to allow efficient way to
+    append new values to the end of the container.
+
+    * template<typename _T>
+      iterator push_back(const _T& value)
+
+    * iterator push_back_empty()
+
+mdds 0.10.2
+
+* multi_type_vector
+
+  * fixed a bug in transfer() that would trigger an assertion and
+    eventually lead to a crash.  The problem occurred when a range of
+    data to be transferred spanned over 2 blocks and consisted of the
+    lower part of an upper block and the upper part of a lower block.
+
+mdds 0.10.1
+
+* multi_type_matrix
+
+  * added a variant of set_empty() that takes an additional length
+    parameter.
+
+    * void set_empty(size_type row, size_type col, size_type length)
+
+mdds 0.10.0
+
+* flat_segment_tree
+
+  * significant performance improvement on build_tree() and
+    search_tree(), by optimizing the non-leaf node object generation
+    and storage to achieve better locality of reference.
+
+* segment_tree
+
+  * slight performance improvement on build_tree(), as a result of the
+    optimization done for flat_segment_tree since these two structures
+    share the same tree generation code.
+
+* multi_type_vector
+
+  * improved debug message on mis-matched block types (only when
+    MDDS_MULTI_TYPE_VECTOR_DEBUG is defined).
+
+mdds 0.9.1
+
+* multi_type_vector
+
+  * added several convenience methods for position objects.
+
+  * performance improvement on setting array values.
+
+  * added new constructor that takes an array of values as initial
+    element values.
+
+* multi_type_matrix
+
+  * setter methods that take a position object to also return a
+    position object.
+
+  * added several convenience methods for position objects.
+
+  * added new constructor that takes an array of values as initial
+    element values.
+
+mdds 0.9.0
+
+* multi_type_vector
+
+  * added another block function template to make it easier to declare
+    container with 3 custom element types.
+
+  * added two variants of release():
+
+    * template<typename _T> iterator
+      release(size_type pos, _T& value)
+
+    * template<typename _T> iterator
+      release(const iterator& pos_hint, size_type pos, _T& value)
+
+  * added a variant of release() that takes no arguments.  This one
+    releases all elements and makes the container empty afterward.
+
+  * added a new variant of position() that takes const_iterator as
+    position hint.
+
+    * std::pair<const_iterator, size_type>
+      position(const const_iterator& pos_hint, size_type pos) const
+
+  * fixed a memory leak in
+
+    * set(size_type pos, const _T& it_begin, const _T& it_end).
+
+  * added compile-time macro MDDS_MULTI_TYPE_VECTOR_USE_DEQUE to allow
+    users to specify std::deque as the underlying data array.  By
+    default, multi_type_vector uses std::vector as the underlying data
+    array container.
+
+  * added a new variant of swap() that allows partial swapping of
+    content with another container.
+
+  * added static block type identifier so that the numeric block type
+    ID can be deduced from the block type directly.
+
+  * value_type (which is a type of object returned when dereferencing
+    an iterator) now stores 'position' which is the logical position
+    of the first element of a block.
+
+  * added position_type and const_position_type which are typedefs to
+    the return types of position() methods.
+
+* multi_type_matrix:
+
+  * get_numeric(), get_boolean(), and get_string() are made more
+    efficient.
+
+  * added position() method that returns a reference object to an
+    element (position object).
+
+  * added variants of get_numeric(), get_boolean() and get_string()
+    that retrieves elements from position objects.
+
+  * added variants of set() that sets new element values via position
+    objects.
+
 mdds 0.8.1
 
 * multi_type_vector

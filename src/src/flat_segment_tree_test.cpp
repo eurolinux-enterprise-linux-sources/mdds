@@ -30,6 +30,7 @@
 
 #include <list>
 #include <iostream>
+#include <string>
 #include <vector>
 #include <limits>
 #include <iterator>
@@ -161,9 +162,9 @@ void fst_test_tree_build()
     }
 }
 
-void fst_perf_test_search(bool tree_search)
+void fst_perf_test_search_leaf()
 {
-    stack_printer __stack_printer__("fst_perf_test_leaf_search");
+    stack_printer __stack_printer__("fst_perf_test_search_leaf");
 
     int lower = 0, upper = 50000;
     flat_segment_tree<int, int> db(lower, upper, 0);
@@ -171,11 +172,34 @@ void fst_perf_test_search(bool tree_search)
         db.insert_front(i, i+1, i);
 
     int success = 0, failure = 0;
-    if (tree_search)
+    int val;
+    for (int i = lower; i < upper; ++i)
     {
-        fprintf(stdout, "fst_perf_test_search:   tree search\n");
-        db.build_tree();
+        if (db.search(i, val).second)
+            ++success;
+        else
+            ++failure;
+    }
+    fprintf(stdout, "fst_perf_test_search_leaf:   success (%d)  failure (%d)\n", success, failure);
+}
 
+void fst_perf_test_search_tree()
+{
+    stack_printer __stack_printer__("fst_perf_test_leaf_search");
+
+    int lower = 0, upper = 5000000;
+    flat_segment_tree<int, int> db(lower, upper, 0);
+    for (int i = upper-1; i >= lower; --i)
+        db.insert_front(i, i+1, i);
+
+    {
+        stack_printer sp2("::fst_perf_test_search_tree (build tree)");
+        db.build_tree();
+    }
+
+    int success = 0, failure = 0;
+    {
+        stack_printer sp2("::fst_perf_test_search_tree (search tree)");
         int val;
         for (int i = lower; i < upper; ++i)
         {
@@ -185,28 +209,7 @@ void fst_perf_test_search(bool tree_search)
                 ++failure;
         }
     }
-    else
-    {
-        fprintf(stdout, "fst_perf_test_search:   leaf search\n");
-        int val;
-        for (int i = lower; i < upper; ++i)
-        {
-            if (tree_search)
-            {
-                if (db.search_tree(i, val).second)
-                    ++success;
-                else
-                    ++failure;
-            }
-            else
-            {
-                if (db.search(i, val).second)
-                    ++success;
-                else
-                    ++failure;
-            }
-        }
-    }
+
     fprintf(stdout, "fst_perf_test_search:   success (%d)  failure (%d)\n", success, failure);
 }
 
@@ -440,7 +443,7 @@ void fst_test_insert_search_mix()
     db_type db(0, 100, 0);
 
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 3);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 0, 0, 0, 100);
     test_single_tree_search(db, 99, 0, 0, 100);
@@ -448,7 +451,7 @@ void fst_test_insert_search_mix()
     db.insert_front(0, 10, 1);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 6);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 0, 1, 0, 10);
     test_single_tree_search(db, 5, 1, 0, 10);
@@ -458,7 +461,7 @@ void fst_test_insert_search_mix()
     db.insert_front(0, 100, 0);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 3);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 0, 0, 0, 100);
     test_single_tree_search(db, 99, 0, 0, 100);
@@ -467,7 +470,7 @@ void fst_test_insert_search_mix()
     db.insert_front(30, 40, 5);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 12);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 10, 5, 10, 20);
     test_single_tree_search(db, 20, 0, 20, 30);
@@ -477,7 +480,7 @@ void fst_test_insert_search_mix()
     db.insert_front(18, 22, 6);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 14);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 18, 6, 18, 22);
     test_single_tree_search(db, 22, 0, 22, 30);
@@ -486,14 +489,14 @@ void fst_test_insert_search_mix()
     db.insert_front(19, 30, 5);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 12);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 19, 5, 19, 40);
 
     db.insert_front(-100, 500, 999);
     assert(!db.is_tree_valid());
     build_and_dump(db);
-    assert(db_type::node::get_instance_count() == 3);
+    assert(db_type::node::get_instance_count() == db.leaf_size());
     assert(db.is_tree_valid());
     test_single_tree_search(db, 30, 999, 0, 100);
 }
@@ -1195,49 +1198,54 @@ void fst_perf_test_insert_front_back()
 
 void fst_test_copy_ctor()
 {
+    stack_printer __stack_printer__("::fst_test_copy_ctor");
     typedef unsigned long key_type;
     typedef int           value_type;
     typedef flat_segment_tree<key_type, value_type> fst;
 
     // Test copy construction of node first.
 
-    // Original node.
-    fst::node_ptr node1(new fst::node(true));
-    node1->value_leaf.key   = 10;
-    node1->value_leaf.value = 500;
-    assert(node1->is_leaf);
-    assert(!node1->parent);
-    assert(!node1->left);
-    assert(!node1->right);
+    {
+        // Original node.
+        fst::node_ptr node1(new fst::node);
+        node1->value_leaf.key   = 10;
+        node1->value_leaf.value = 500;
+        assert(node1->is_leaf);
+        assert(!node1->parent);
+        assert(!node1->prev);
+        assert(!node1->next);
 
-    // Copy it to new node.
-    fst::node_ptr node2(new fst::node(*node1));
-    assert(node2->is_leaf);
-    assert(!node2->parent);
-    assert(!node2->left);
-    assert(!node2->right);
-    assert(node2->value_leaf.key == 10);
-    assert(node2->value_leaf.value == 500);
+        // Copy it to new node.
+        fst::node_ptr node2(new fst::node(*node1));
+        assert(node2->is_leaf);
+        assert(!node2->parent);
+        assert(!node2->prev);
+        assert(!node2->next);
+        assert(node2->value_leaf.key == 10);
+        assert(node2->value_leaf.value == 500);
 
-    // Changing the values of the original should not modify the second node.
-    node1->value_leaf.key   = 35;
-    node1->value_leaf.value = 200;
-    assert(node2->value_leaf.key == 10);
-    assert(node2->value_leaf.value == 500);
+        // Changing the values of the original should not modify the second node.
+        node1->value_leaf.key   = 35;
+        node1->value_leaf.value = 200;
+        assert(node2->value_leaf.key == 10);
+        assert(node2->value_leaf.value == 500);
+    }
 
-    // Change the original node to non leaf.
-    node1->is_leaf = false;
-    node1->value_nonleaf.low  = 123;
-    node1->value_nonleaf.high = 789;
+    {
+        // Test non-leaf node objects.
+        fst::nonleaf_node node1;
+        node1.value_nonleaf.low  = 123;
+        node1.value_nonleaf.high = 789;
 
-    // Test the copying of non-leaf values.
-    fst::node_ptr node3(new fst::node(*node1));
-    assert(!node3->is_leaf);
-    assert(!node3->parent);
-    assert(!node3->left);
-    assert(!node3->right);
-    assert(node3->value_nonleaf.low == 123);
-    assert(node3->value_nonleaf.high == 789);
+        // Test the copying of non-leaf values.
+        fst::nonleaf_node node2(node1);
+        assert(!node2.is_leaf);
+        assert(!node2.parent);
+        assert(!node2.left);
+        assert(!node2.right);
+        assert(node2.value_nonleaf.low == 123);
+        assert(node2.value_nonleaf.high == 789);
+    }
 
     // Now, test the copy construction of the flat_segment_tree.
 
@@ -1281,7 +1289,7 @@ void fst_test_copy_ctor()
     assert(!db_copied_again.get_root_node());
 
     // Make sure we can still perform tree search correctly.
-    value_type answer;
+    value_type answer = 0;
     db_copied_again.build_tree();
     db_copied_again.search_tree(18, answer);
     assert(db_copied_again.is_tree_valid());
@@ -1290,6 +1298,7 @@ void fst_test_copy_ctor()
 
 void fst_test_equality()
 {
+    stack_printer __stack_printer__("::fst_test_equality");
     typedef unsigned long key_type;
     typedef int           value_type;
     typedef flat_segment_tree<key_type, value_type> container_type;
@@ -1800,7 +1809,7 @@ void fst_test_swap()
     assert(db2.is_tree_valid());
 
     // Tree search should work on db2.
-    db_type::value_type val;
+    db_type::value_type val = 0;
     assert(db2.search_tree(35, val).second);
     assert(val == 2);
 }
@@ -1920,67 +1929,209 @@ void fst_test_assignment()
     assert(!db3.is_tree_valid());
 }
 
+void fst_test_non_numeric_value()
+{
+    stack_printer __stack_printer__("::fst_test_non_numeric_value");
+
+    typedef flat_segment_tree<int, std::string> db_type;
+    db_type db(0, 4, "42");
+    db.insert_back(1, 2, "hello world");
+
+    assert(db.default_value() == "42");
+
+    std::string result;
+    db.search(1, result);
+
+    assert(result == "hello world");
+
+    db_type db2(db);
+
+    assert(db == db2);
+}
+
+void fst_test_insert_out_of_bound()
+{
+    stack_printer __stack_printer__("::fst_test_insert_out_of_bound");
+
+    typedef flat_segment_tree<int, bool> db_type;
+    db_type db(0, 10, false);
+
+    // An out-of-bound range, whether it's in part or in its entirety, should
+    // be handled gracefully without throwing exceptions or causing segfaults.
+
+    // ranges that are entirely out-of-bound.
+
+    auto ret = db.insert_front(-10, -8, false);
+    assert(!ret.second);
+    db.insert_back(12, 13, false);
+    assert(!ret.second);
+
+    db_type::const_iterator pos = db.end();
+
+    ret = db.insert(pos, -10, -8, false);
+    assert(!ret.second);
+    pos = ret.first;
+
+    ret = db.insert(pos, 12, 13, false);
+    assert(!ret.second);
+    pos = ret.first;
+
+    // partial overflows.
+
+    ret = db.insert(pos, -2, 2, true);
+    assert(ret.second); // content modified
+    pos = ret.first;
+
+    ret = db.insert(pos, 8, 20, true);
+    assert(ret.second); // content modified
+    pos = ret.first;
+}
+
+void fst_test_segment_iterator()
+{
+    stack_printer __stack_printer__("::fst_test_segment_iterator");
+
+    typedef flat_segment_tree<int16_t, bool> db_type;
+    db_type db(0, 100, false);
+
+    db_type::const_segment_iterator it = db.begin_segment();
+    db_type::const_segment_iterator ite = db.end_segment();
+
+    assert(it != ite);
+    assert(it->start == 0);
+    assert(it->end == 100);
+    assert(it->value == false);
+
+    const auto& v = *it;
+    assert(v.start == 0);
+    assert(v.end == 100);
+    assert(v.value == false);
+
+    ++it;
+    assert(it == ite);
+
+    --it;
+    assert(it != ite);
+    assert(it->start == 0);
+    assert(it->end == 100);
+    assert(it->value == false);
+
+    db_type::const_segment_iterator it2; // default constructor
+    it2 = it; // assignment operator
+    assert(it2 == it);
+    assert(it2->start == 0);
+    assert(it2->end == 100);
+    assert(it2->value == false);
+
+    auto it3(it2); // copy constructor
+    assert(it3 == it2);
+    assert(it3->start == 0);
+    assert(it3->end == 100);
+    assert(it3->value == false);
+
+    db.insert_back(20, 50, true); // this invalidates the iterators.
+
+    it = db.begin_segment();
+    ite = db.end_segment();
+
+    assert(it->start == 0);
+    assert(it->end == 20);
+    assert(it->value == false);
+
+    it2 = it++; // post-increment
+
+    assert(it2->start == 0);
+    assert(it2->end == 20);
+    assert(it2->value == false);
+
+    assert(it->start == 20);
+    assert(it->end == 50);
+    assert(it->value == true);
+
+    ++it;
+    assert(it->start == 50);
+    assert(it->end == 100);
+    assert(it->value == false);
+
+    ++it;
+    assert(it == ite);
+
+    it2 = it--; // post-decrement.
+    assert(it2 == ite);
+}
+
 int main (int argc, char **argv)
 {
-    cmd_options opt;
-    if (!parse_cmd_options(argc, argv, opt))
-        return EXIT_FAILURE;
-
-    if (opt.test_func)
+    try
     {
-        fst_test_equality();
-        fst_test_copy_ctor();
-        fst_test_back_insert();
+        cmd_options opt;
+        if (!parse_cmd_options(argc, argv, opt))
+            return EXIT_FAILURE;
+
+        if (opt.test_func)
         {
-            typedef unsigned int   key_type;
-            typedef unsigned short value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            fst_test_equality();
+            fst_test_copy_ctor();
+            fst_test_back_insert();
+            {
+                typedef unsigned int   key_type;
+                typedef unsigned short value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            {
+                typedef int   key_type;
+                typedef short value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            {
+                typedef long         key_type;
+                typedef unsigned int value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            fst_test_leaf_search();
+            fst_test_tree_build();
+            fst_test_tree_search();
+            fst_test_insert_search_mix();
+            fst_test_shift_left();
+            fst_test_shift_left_right_edge();
+            fst_test_shift_left_append_new_segment();
+            fst_test_shift_right_init0();
+            fst_test_shift_right_init999();
+            fst_test_shift_right_bool();
+            fst_test_shift_right_skip_start_node();
+            fst_test_shift_right_all_nodes();
+            fst_test_const_iterator();
+            fst_test_insert_iterator();
+            fst_test_insert_state_changed();
+            fst_test_position_search();
+            fst_test_min_max_default();
+            fst_test_swap();
+            fst_test_clear();
+            fst_test_assignment();
+            fst_test_non_numeric_value();
+            fst_test_insert_out_of_bound();
+            fst_test_segment_iterator();
         }
 
+        if (opt.test_perf)
         {
-            typedef int   key_type;
-            typedef short value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            fst_perf_test_search_leaf();
+            fst_perf_test_search_tree();
+            fst_perf_test_insert_front_back();
+            fst_perf_test_insert_position();
+            fst_perf_test_position_search();
         }
-
-        {
-            typedef long         key_type;
-            typedef unsigned int value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
-        }
-
-        fst_test_leaf_search();
-        fst_test_tree_build();
-        fst_test_tree_search();
-        fst_test_insert_search_mix();
-        fst_test_shift_left();
-        fst_test_shift_left_right_edge();
-        fst_test_shift_left_append_new_segment();
-        fst_test_shift_right_init0();
-        fst_test_shift_right_init999();
-        fst_test_shift_right_bool();
-        fst_test_shift_right_skip_start_node();
-        fst_test_shift_right_all_nodes();
-        fst_test_const_iterator();
-        fst_test_insert_iterator();
-        fst_test_insert_state_changed();
-        fst_test_position_search();
-        fst_test_min_max_default();
-        fst_test_swap();
-        fst_test_clear();
-        fst_test_assignment();
     }
-
-    if (opt.test_perf)
+    catch (const std::exception& e)
     {
-        fst_perf_test_search(true);
-        fst_perf_test_search(false);
-        fst_perf_test_insert_front_back();
-        fst_perf_test_insert_position();
-        fst_perf_test_position_search();
+        fprintf(stdout, "Test failed: %s\n", e.what());
+        return EXIT_FAILURE;
     }
 
     fprintf(stdout, "Test finished successfully!\n");

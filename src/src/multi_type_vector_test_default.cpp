@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2011-2013 Kohei Yoshida
+ * Copyright (c) 2011-2014 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -37,7 +37,6 @@
 #include <deque>
 
 #include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/noncopyable.hpp>
 
 #define ARRAY_SIZE(x) sizeof(x)/sizeof(x[0])
 
@@ -155,6 +154,49 @@ void mtv_test_construction()
         assert(db.block_size() == 1);
         assert(db.get<string>(0) == "foo");
         assert(db.get<string>(9) == "foo");
+    }
+
+    {
+        // Create with an array of values.
+        vector<double> vals;
+        vals.push_back(1.1);
+        vals.push_back(1.2);
+        vals.push_back(1.3);
+        mtv_type db(vals.size(), vals.begin(), vals.end());
+        assert(db.size() == 3);
+        assert(db.block_size() == 1);
+        assert(db.get<double>(0) == 1.1);
+        assert(db.get<double>(1) == 1.2);
+        assert(db.get<double>(2) == 1.3);
+    }
+
+    {
+        vector<string> vals;
+        mtv_type db_empty(0, vals.begin(), vals.end());
+        assert(db_empty.size() == 0);
+        assert(db_empty.block_size() == 0);
+
+        vals.push_back("Andy");
+        vals.push_back("Bruce");
+
+        mtv_type db(2, vals.begin(), vals.end());
+        assert(db.size() == 2);
+        assert(db.block_size() == 1);
+        assert(db.get<string>(0) == "Andy");
+        assert(db.get<string>(1) == "Bruce");
+    }
+
+    {
+        vector<int> vals(10, 1);
+        try
+        {
+            mtv_type db(20, vals.begin(), vals.end());
+            assert(!"This construction should have failed due to incorrect initial array size.");
+        }
+        catch (const invalid_arg_error&)
+        {
+            // good.
+        }
     }
 }
 
@@ -1231,6 +1273,38 @@ void mtv_test_equality()
         // Comparison to self.
         assert(db1 == db1);
         assert(db2 == db2);
+    }
+
+    {
+        // Two containers both consisting of numeric - empty - numeric blocks,
+        // and the last numeric blocks differ.
+
+        mtv_type db1(5), db2(5);
+        db1.set(0, 1.1);
+        db1.set(3, 2.1);
+        db1.set(4, 2.2);
+
+        db2.set(0, 1.1);
+        db2.set(3, 2.1);
+        db2.set(4, 2.3); // different value
+
+        assert(db1 != db2);
+    }
+
+    {
+        mtv_type db1(2), db2(2);
+        db1.set(1, 10.1);
+        db2.set(1, 10.1);
+        assert(db1 == db2);
+
+        db2.set(0, string("foo"));
+        assert(db1 != db2);
+
+        db1.set(0, string("foo"));
+        assert(db1 == db2);
+
+        db2.set_empty(0, 0);
+        assert(db1 != db2);
     }
 }
 
@@ -2431,6 +2505,22 @@ void mtv_test_iterators()
             assert(it == it_end);
         }
     }
+
+    {
+        // Make sure that decrementing the iterator calculates the position correctly.
+        mtv_type db(10);
+        db.set(0, true);
+        mtv_type::const_iterator it = db.begin();
+        assert(it->position == 0);
+        assert(it->size == 1);
+        ++it;
+        assert(it->position == 1);
+        assert(it->size == 9);
+        --it;
+        assert(it->position == 0);
+        assert(it->size == 1);
+        assert(it == db.begin());
+    }
 }
 
 void mtv_test_data_iterators()
@@ -2481,7 +2571,7 @@ void mtv_test_data_iterators()
     ++it_blk;
     assert(it_blk->type == mdds::mtv::element_type_empty);
     assert(it_blk->size == 1);
-    assert(it_blk->data == NULL);
+    assert(it_blk->data == nullptr);
 
     // Next block is a string block.
     ++it_blk;
@@ -2507,7 +2597,7 @@ void mtv_test_data_iterators()
     ++it_blk;
     assert(it_blk->type == mdds::mtv::element_type_empty);
     assert(it_blk->size == 2);
-    assert(it_blk->data == NULL);
+    assert(it_blk->data == nullptr);
 
     ++it_blk;
     assert(it_blk == it_blk_end);
@@ -2525,7 +2615,7 @@ void check_block_iterator(const mtv_type::iterator& it, mtv::element_t expected)
     mtv::element_t actual = it->type;
     const mtv_type::element_block_type* data = (*it).data;
     assert(actual == expected);
-    assert(data != NULL);
+    assert(data != nullptr);
 }
 
 void mtv_test_non_const_data_iterators()
@@ -2585,12 +2675,12 @@ void mtv_test_iterator_private_data()
     // With only a single block
 
     mtv_type::iterator it = db.begin();
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
 
     it = db.end();
     --it;
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
 
     // With 3 blocks (sizes of 4, 3, and 2 in this order)
@@ -2601,15 +2691,15 @@ void mtv_test_iterator_private_data()
 
     it = db.begin();
     assert(it->size == 4);
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
     ++it;
     assert(it->size == 3);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 1);
     ++it;
     assert(it->size == 2);
-    assert(it->__private_data.start_pos == 7);
+    assert(it->position == 7);
     assert(it->__private_data.block_index == 2);
 
     ++it;
@@ -2618,15 +2708,15 @@ void mtv_test_iterator_private_data()
     // Go in reverse direction.
     --it;
     assert(it->size == 2);
-    assert(it->__private_data.start_pos == 7);
+    assert(it->position == 7);
     assert(it->__private_data.block_index == 2);
     --it;
     assert(it->size == 3);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 1);
     --it;
     assert(it->size == 4);
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
     assert(it == db.begin());
 }
@@ -2667,7 +2757,7 @@ void mtv_test_set_return_iterator()
     check = db.end();
     std::advance(check, -2);
     assert(it == check);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
     assert(it->__private_data.block_index == 1);
 
     // Set value to the top empty block of size 1 followed by a non-empty block.
@@ -2677,13 +2767,13 @@ void mtv_test_set_return_iterator()
     it = db.set(0, 2.2); // same type as that of the following block.
     assert(it == db.begin());
     assert(it->size == 2);
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
     db.set_empty(0, 0);
     it = db.set(0, true); // different type from that of the following block.
     assert(it == db.begin());
     assert(it->size == 1);
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it->__private_data.block_index == 0);
 
     // Set value to the top of the top empty block (not size 1) followed by a non-empty block.
@@ -2705,7 +2795,7 @@ void mtv_test_set_return_iterator()
     --check;
     assert(it == check);
     assert(it->size == 2);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
     assert(it->__private_data.block_index == 1);
     db.set_empty(0, 1);
     it = db.set(1, true); // different type from that of the following block.
@@ -2716,7 +2806,7 @@ void mtv_test_set_return_iterator()
     std::advance(check, -2);
     assert(it == check);
     assert(it->size == 1);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
     assert(it->__private_data.block_index == 1);
 
     // Set value to the middle of the top empty block (not size 1) followed by a non-empty block.
@@ -2728,7 +2818,7 @@ void mtv_test_set_return_iterator()
     ++check;
     assert(it == check);
     assert(it->size == 1);
-    assert(it->__private_data.start_pos == 3);
+    assert(it->position == 3);
     assert(it->__private_data.block_index == 1);
 
     // Set value to an empty block of size 1 immediately below a non-empty block.
@@ -2806,7 +2896,7 @@ void mtv_test_set_return_iterator()
     ++check;
     assert(it == check);
     assert(it->size == 1);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
 
     // Set value to the bottom of an empty block (not of size 1) between
     // non-empty blocks.
@@ -2814,7 +2904,7 @@ void mtv_test_set_return_iterator()
     db.set_empty(2, 4);
     it = db.set(4, true); // Same type as that of the following block.
     assert(it->size == 3);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 2);
     ++it;
     assert(it == db.end());
@@ -2822,7 +2912,7 @@ void mtv_test_set_return_iterator()
     db.set_empty(2, 4);
     it = db.set(4, 1.1); // Different type from that of the following block.
     assert(it->size == 1);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 2);
     std::advance(it, 2);
     assert(it == db.end());
@@ -2905,7 +2995,7 @@ void mtv_test_set_return_iterator()
     it = db.set(6, string("text"));
     assert(it->size == 1);
     assert(it->type == mtv::element_type_string);
-    assert(it->__private_data.start_pos = 6);
+    assert(it->position == 6);
     check = db.begin();
     std::advance(check, 2);
     assert(it == check);
@@ -2931,7 +3021,7 @@ void mtv_test_set_return_iterator()
     it = db.set(4, 1.1);
     assert(it->size == 1);
     assert(it->type == mtv::element_type_numeric);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     check = db.begin();
     ++check;
     assert(it == check);
@@ -2991,7 +3081,7 @@ void mtv_test_set_return_iterator()
     it = db.set(4, string("foo"));
     assert(it->size == 1);
     assert(it->type == mtv::element_type_string);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 2);
     ++it;
     assert(it->size == 5);
@@ -3005,12 +3095,12 @@ void mtv_test_set_return_iterator()
     it = db.set(6, string("foo")); // 7 thru 9 is boolean.
     assert(it->size == 1);
     assert(it->type == mtv::element_type_string);
-    assert(it->__private_data.start_pos == 6);
+    assert(it->position == 6);
     assert(it->__private_data.block_index == 2);
     ++it;
     assert(it->size == 3);
     assert(it->type == mtv::element_type_boolean);
-    assert(it->__private_data.start_pos == 7);
+    assert(it->position == 7);
     ++it;
     assert(it == db.end());
 
@@ -3120,17 +3210,17 @@ void mtv_test_set_return_iterator()
     --it;
     assert(it->size == 4);
     assert(it->type == mtv::element_type_numeric);
-    assert(it->__private_data.start_pos == 2);
+    assert(it->position == 2);
     --it;
     assert(it->size == 2);
     assert(it->type == mtv::element_type_boolean);
-    assert(it->__private_data.start_pos == 0);
+    assert(it->position == 0);
     assert(it == db.begin());
 
     it = db.set(6, 4.5); // Same type as those of the preceding and following blocks.
     assert(it->size == 8);
     assert(it->type == mtv::element_type_numeric);
-    assert(it->__private_data.start_pos == 2);
+    assert(it->position == 2);
     assert(it->__private_data.block_index == 1);
     check = db.begin();
     ++check;
@@ -3160,7 +3250,7 @@ void mtv_test_set_return_iterator()
     it = db.set(4, static_cast<short>(28)); // Different type from either of the blocks.
     assert(it->size == 1);
     assert(it->type == mtv::element_type_short);
-    assert(it->__private_data.start_pos == 4);
+    assert(it->position == 4);
     assert(it->__private_data.block_index == 1);
     std::advance(it, 2);
     assert(it == db.end());
@@ -3176,11 +3266,11 @@ void mtv_test_set_return_iterator()
     assert(it == check);
     assert(it->size == 1);
     assert(it->type == mtv::element_type_string);
-    assert(it->__private_data.start_pos == 6);
+    assert(it->position == 6);
     ++it;
     assert(it->size == 3);
     assert(it->type == mtv::element_type_numeric);
-    assert(it->__private_data.start_pos == 7);
+    assert(it->position == 7);
     ++it;
     assert(it == db.end());
 
@@ -3507,7 +3597,7 @@ void mtv_test_insert_cells_return_iterator()
     advance(check, 2);
     assert(it == check);
     assert(it->size == 5);
-    assert(it->__private_data.start_pos == 3);
+    assert(it->position == 3);
     ++it;
     assert(it->type == mtv::element_type_empty);
     assert(it->size == 6);
@@ -3765,7 +3855,7 @@ void mtv_test_set_empty_return_iterator()
     assert(it == check);
     assert(it->size == 9);
     assert(it->type == mtv::element_type_empty);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
     assert(it->__private_data.block_index == 1);
     ++it;
     assert(it == db.end());
@@ -3779,7 +3869,7 @@ void mtv_test_set_empty_return_iterator()
     assert(it == check);
     assert(it->size == 5);
     assert(it->type == mtv::element_type_empty);
-    assert(it->__private_data.start_pos == 1);
+    assert(it->position == 1);
     assert(it->__private_data.block_index == 1);
     ++it;
     assert(it->size == 1);
@@ -3804,7 +3894,7 @@ void mtv_test_set_empty_return_iterator()
     assert(it->size == 4);
     assert(it->type == mtv::element_type_empty);
     assert(it->__private_data.block_index == 2);
-    assert(it->__private_data.start_pos == 5);
+    assert(it->position == 5);
     advance(it, 2);
     assert(it == db.end());
 }
@@ -4039,12 +4129,13 @@ void mtv_test_position()
     stack_printer __stack_printer__("::mtv_test_position");
     mtv_type db(10, false);
     mtv_type::iterator check;
+    mtv_type::const_iterator const_check;
     db.set(6, 1.1);
     db.set(7, 1.2);
     db.set(8, 1.3);
     db.set(9, 1.4);
 
-    pair<mtv_type::iterator,mtv_type::size_type> pos = db.position(0);
+    mtv_type::position_type pos = db.position(0);
     assert(pos.first == db.begin());
     assert(pos.second == 0);
 
@@ -4085,9 +4176,14 @@ void mtv_test_position()
 
     // Quick check for the const variant.
     const mtv_type& db_ref = db;
-    pair<mtv_type::const_iterator,mtv_type::size_type> const_pos = db_ref.position(3);
+    mtv_type::const_position_type const_pos = db_ref.position(3);
     assert(const_pos.first == db_ref.begin());
     assert(const_pos.second == 3);
+    const_pos = db_ref.position(const_pos.first, 7);
+    const_check = db_ref.begin();
+    ++const_check;
+    assert(const_pos.first == const_check);
+    assert(const_pos.second == 1);
 
     // Check for the variant that takes position hint.
     pos = db.position(0);
@@ -4109,54 +4205,933 @@ void mtv_test_position()
     assert(pos.second == 3);
 }
 
-void mtv_perf_test_block_position_lookup()
+void mtv_test_next_position()
 {
-    size_t n = 24000;
+    stack_printer __stack_printer__("::mtv_test_next_position");
+    mtv_type db(10);
+    db.set(2, 1.1);
+    db.set(3, 1.2);
+    db.set(4, string("A"));
+    db.set(5, string("B"));
+    db.set(6, string("C"));
 
+    mtv_type::position_type pos = db.position(0);
+    assert(mtv_type::logical_position(pos) == 0);
+    assert(pos.first->type == mtv::element_type_empty);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 1);
+    assert(pos.first->type == mtv::element_type_empty);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 2);
+    assert(pos.first->type == mtv::element_type_numeric);
+    assert(mtv_type::get<mtv::numeric_element_block>(pos) == 1.1);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 3);
+    assert(pos.first->type == mtv::element_type_numeric);
+    assert(mtv_type::get<mtv::numeric_element_block>(pos) == 1.2);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 4);
+    assert(pos.first->type == mtv::element_type_string);
+    assert(mtv_type::get<mtv::string_element_block>(pos) == "A");
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 5);
+    assert(pos.first->type == mtv::element_type_string);
+    assert(mtv_type::get<mtv::string_element_block>(pos) == "B");
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 6);
+    assert(pos.first->type == mtv::element_type_string);
+    assert(mtv_type::get<mtv::string_element_block>(pos) == "C");
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 7);
+    assert(pos.first->type == mtv::element_type_empty);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 8);
+    assert(pos.first->type == mtv::element_type_empty);
+
+    pos = mtv_type::next_position(pos);
+    assert(mtv_type::logical_position(pos) == 9);
+    assert(pos.first->type == mtv::element_type_empty);
+
+    pos = mtv_type::next_position(pos);
+    assert(pos.first == db.end());
+}
+
+void mtv_test_advance_position()
+{
+    stack_printer __stack_printer__("::mtv_test_advance_position");
+    mtv_type db(10);
+    db.set(2, 1.1);
+    db.set(3, 1.2);
+    db.set(4, string("A"));
+    db.set(5, string("B"));
+    db.set(6, string("C"));
+
+    mtv_type::position_type pos = db.position(0);
+    assert(mtv_type::logical_position(pos) == 0);
+
+    pos = mtv_type::advance_position(pos, 4);
+    assert(mtv_type::logical_position(pos) == 4);
+
+    pos = mtv_type::advance_position(pos, 5);
+    assert(mtv_type::logical_position(pos) == 9);
+
+    pos = mtv_type::advance_position(pos, -3);
+    assert(mtv_type::logical_position(pos) == 6);
+
+    pos = mtv_type::advance_position(pos, -6);
+    assert(mtv_type::logical_position(pos) == 0);
+
+    pos = mtv_type::advance_position(pos, 10);
+    assert(pos.first == db.end());
+}
+
+void mtv_test_swap_range()
+{
+    stack_printer __stack_printer__("::mtv_test_swap_range");
+    mtv_type db1(10), db2(10);
+    db1.set(2, 1.1);
+    db1.set(3, 1.2);
+    db1.set(4, 1.3);
+
+    db2.set(2, 2.1);
+    db2.set(3, 2.2);
+    db2.set(4, 2.3);
+
+    db1.swap(2, 4, db2, 2);
+    assert(db1.get<double>(2) == 2.1);
+    assert(db1.get<double>(3) == 2.2);
+    assert(db1.get<double>(4) == 2.3);
+    assert(db2.get<double>(2) == 1.1);
+    assert(db2.get<double>(3) == 1.2);
+    assert(db2.get<double>(4) == 1.3);
+
+    // Source is empty but destination is not.
+    db1 = mtv_type(3);
+    db2 = mtv_type(3, 12.3);
+    db1.swap(1, 2, db2, 1);
+    assert(db1.is_empty(0));
+    assert(db1.get<double>(1) == 12.3);
+    assert(db1.get<double>(2) == 12.3);
+    assert(db1.block_size() == 2);
+    assert(db2.get<double>(0) == 12.3);
+    assert(db2.is_empty(1));
+    assert(db2.is_empty(2));
+    assert(db2.block_size() == 2);
+
+    // Go to the opposite direction.
+    db1.swap(1, 2, db2, 1);
+    assert(db1.block_size() == 1);
+    mtv_type::iterator it = db1.begin();
+    assert(it->type == mtv::element_type_empty);
+    assert(it->size == 3);
+    it = db2.begin();
+    assert(it->type == mtv::element_type_numeric);
+    assert(it->size == 3);
+
+    int int_val = 2;
+    short short_val = 5;
+    db1 = mtv_type(5, int_val);
+    db2 = mtv_type(5, short_val);
+    db1.set(1, 2.3);
+    db1.set(2, 2.4);
+    db2.set(3, string("abc"));
+    db2.set(4, string("def"));
+    db1.swap(1, 2, db2, 3); // Swap 1-2 of source with 3-4 of destination.
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<string>(1) == "abc");
+    assert(db1.get<string>(2) == "def");
+    assert(db1.get<int>(3) == int_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 3);
+
+    assert(db2.get<short>(0) == short_val);
+    assert(db2.get<short>(1) == short_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<double>(3) == 2.3);
+    assert(db2.get<double>(4) == 2.4);
+    assert(db2.block_size() == 2);
+
+    // Merge with the next block in the destination.
+    db1 = mtv_type(5, int_val);
+    db2 = mtv_type(5, 12.3);
+    db2.set(0, string("A"));
+    db2.set(1, string("B"));
+    db1.set(3, 1.1);
+    db1.set(4, 1.2);
+    db1.swap(3, 4, db2, 0);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<string>(3) == "A");
+    assert(db1.get<string>(4) == "B");
+    assert(db1.block_size() == 2);
+
+    assert(db2.get<double>(0) == 1.1);
+    assert(db2.get<double>(1) == 1.2);
+    assert(db2.get<double>(2) == 12.3);
+    assert(db2.get<double>(3) == 12.3);
+    assert(db2.get<double>(4) == 12.3);
+    assert(db2.block_size() == 1);
+
+    // Merge with the previous block in the destination.
+    db1 = mtv_type(5, int_val);
+    db1.set(2, string("A"));
+    db1.set(3, string("B"));
+
+    db2 = mtv_type(5, string("default"));
+    db2.set(3, short_val);
+    db2.set(4, short_val);
+
+    db1.swap(2, 3, db2, 3);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<short>(2) == short_val);
+    assert(db1.get<short>(3) == short_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 3);
+
+    assert(db2.get<string>(0) == "default");
+    assert(db2.get<string>(1) == "default");
+    assert(db2.get<string>(2) == "default");
+    assert(db2.get<string>(3) == "A");
+    assert(db2.get<string>(4) == "B");
+    assert(db2.block_size() == 1);
+
+    // Merge with both the previous and next blocks in the destination.
+    db1 = mtv_type(5, int_val);
+    db1.set(2, string("C"));
+    db1.set(3, string("D"));
+
+    db2 = mtv_type(6, string("default"));
+    db2.set(3, short_val);
+    db2.set(4, short_val);
+
+    db1.swap(2, 3, db2, 3);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<short>(2) == short_val);
+    assert(db1.get<short>(3) == short_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 3);
+
+    assert(db2.get<string>(0) == "default");
+    assert(db2.get<string>(1) == "default");
+    assert(db2.get<string>(2) == "default");
+    assert(db2.get<string>(3) == "C");
+    assert(db2.get<string>(4) == "D");
+    assert(db2.get<string>(5) == "default");
+    assert(db2.block_size() == 1);
+
+    // Set the new elements to the top of a block in the destination.
+    db1 = mtv_type(5, int_val);
+    db1.set(3, string("E"));
+    db1.set(4, string("F"));
+    db2 = mtv_type(5, short_val);
+    db1.swap(3, 4, db2, 0);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<short>(3) == short_val);
+    assert(db1.get<short>(4) == short_val);
+    assert(db1.block_size() == 2);
+    assert(db2.get<string>(0) == "E");
+    assert(db2.get<string>(1) == "F");
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<short>(3) == short_val);
+    assert(db2.get<short>(4) == short_val);
+    assert(db2.block_size() == 2);
+
+    // Do the same as before, but merge with the previous block.
+    db1 = mtv_type(5, int_val);
+    db1.set(3, string("G"));
+    db1.set(4, string("H"));
+    db2 = mtv_type(5, short_val);
+    db2.set(0, string("F"));
+    db1.swap(3, 4, db2, 1);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<short>(3) == short_val);
+    assert(db1.get<short>(4) == short_val);
+    assert(db1.block_size() == 2);
+    assert(db2.get<string>(0) == "F");
+    assert(db2.get<string>(1) == "G");
+    assert(db2.get<string>(2) == "H");
+    assert(db2.get<short>(3) == short_val);
+    assert(db2.get<short>(4) == short_val);
+    assert(db2.block_size() == 2);
+
+    // Set the new element to the middle of a destination block.
+    db1 = mtv_type(5, int_val);
+    db1.set(3, string("I"));
+    db1.set(4, string("J"));
+    db2 = mtv_type(5, short_val);
+    db2.set(0, string("top"));
+    db1.swap(3, 4, db2, 2);
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<short>(3) == short_val);
+    assert(db1.get<short>(4) == short_val);
+    assert(db1.block_size() == 2);
+
+    assert(db2.get<string>(0) == "top");
+    assert(db2.get<short>(1) == short_val);
+    assert(db2.get<string>(2) == "I");
+    assert(db2.get<string>(3) == "J");
+    assert(db2.get<short>(4) == short_val);
+    assert(db2.block_size() == 4);
+
+    // Set the new element to the lower part of a destination block.
+    db1 = mtv_type(5, int_val);
+    db1.set(0, string("A1"));
+    db1.set(1, string("A2"));
+    db2 = mtv_type(5, short_val);
+    db1.swap(0, 1, db2, 3);
+
+    assert(db1.get<short>(0) == short_val);
+    assert(db1.get<short>(1) == short_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<int>(3) == int_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 2);
+
+    assert(db2.get<short>(0) == short_val);
+    assert(db2.get<short>(1) == short_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<string>(3) == "A1");
+    assert(db2.get<string>(4) == "A2");
+    assert(db2.block_size() == 2);
+
+    // Same as above, except that the new element will be merged with the next
+    // block in the destination.
+    db1 = mtv_type(5, int_val);
+    db1.set(0, string("A1"));
+    db1.set(1, string("A2"));
+    db2 = mtv_type(6, short_val);
+    db2.set(5, string("A3"));
+    db1.swap(0, 1, db2, 3);
+
+    assert(db1.get<short>(0) == short_val);
+    assert(db1.get<short>(1) == short_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<int>(3) == int_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 2);
+
+    assert(db2.get<short>(0) == short_val);
+    assert(db2.get<short>(1) == short_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<string>(3) == "A1");
+    assert(db2.get<string>(4) == "A2");
+    assert(db2.get<string>(5) == "A3");
+    assert(db2.block_size() == 2);
+
+    // Swap the top part of source block.
+    db1 = mtv_type(5, int_val);
+    db2 = mtv_type(5, short_val);
+    db1.swap(0, 1, db2, 0);
+
+    assert(db1.get<short>(0) == short_val);
+    assert(db1.get<short>(1) == short_val);
+    assert(db1.get<int>(2) == int_val);
+    assert(db1.get<int>(3) == int_val);
+    assert(db1.get<int>(4) == int_val);
+
+    assert(db2.get<int>(0) == int_val);
+    assert(db2.get<int>(1) == int_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<short>(3) == short_val);
+    assert(db2.get<short>(4) == short_val);
+
+    // Do the same, and merge with the previous block in the source.
+    db1 = mtv_type(5, int_val);
+    db1.set(0, string("A"));
+    db2 = mtv_type(5, short_val);
+    db2.set(0, string("B"));
+    db2.set(1, string("C"));
+    db1.swap(1, 2, db2, 0);
+
+    assert(db1.get<string>(0) == "A");
+    assert(db1.get<string>(1) == "B");
+    assert(db1.get<string>(2) == "C");
+    assert(db1.get<int>(3) == int_val);
+    assert(db1.get<int>(4) == int_val);
+    assert(db1.block_size() == 2);
+
+    assert(db2.get<int>(0) == int_val);
+    assert(db2.get<int>(1) == int_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<short>(3) == short_val);
+    assert(db2.get<short>(4) == short_val);
+    assert(db2.block_size() == 2);
+
+    // Replace the bottom part of existing source block.
+    db1 = mtv_type(2, true);
+    db2 = mtv_type(1, int_val);
+    db1.swap(1, 1, db2, 0);
+    assert(db1.get<bool>(0) == true);
+    assert(db1.get<int>(1) == int_val);
+    assert(db2.get<bool>(0) == true);
+
+    // Do the same, but merge with the next block in the source.
+    db1 = mtv_type(3, true);
+    db1.set<int>(2, int_val+1);
+    db2 = mtv_type(1, int_val);
+    db1.swap(1, 1, db2, 0);
+    assert(db1.get<bool>(0) == true);
+    assert(db1.get<int>(1) == int_val);
+    assert(db1.get<int>(2) == int_val+1);
+    assert(db2.get<bool>(0) == true);
+
+    // Replace the middle of existing source block.
+    db1 = mtv_type(5);
+    db1.set<char>(0, 'a');
+    db1.set<char>(1, 'b');
+    db1.set<char>(2, 'c');
+    db1.set<char>(3, 'd');
+    db1.set<char>(4, 'e');
+    db2 = mtv_type(2);
+    db2.set(0, 1.1);
+    db2.set(1, -1.1);
+    db1.swap(2, 3, db2, 0);
+    assert(db1.get<char>(0) == 'a');
+    assert(db1.get<char>(1) == 'b');
+    assert(db1.get<double>(2) == 1.1);
+    assert(db1.get<double>(3) == -1.1);
+    assert(db1.get<char>(4) == 'e');
+    assert(db1.block_size() == 3);
+
+    assert(db2.get<char>(0) == 'c');
+    assert(db2.get<char>(1) == 'd');
+    assert(db2.block_size() == 1);
+
+    // Swap single empty block with multiple destination blocks.
+    db1 = mtv_type(5);
+    db2 = mtv_type(5);
+    db2.set(0, 1.1);
+    db2.set(1, 2.1);
+    db2.set(2, 3.1);
+    db2.set(3, string("abc"));
+    db2.set(4, string("def"));
+    db1.swap(0, 3, db2, 1);
+    assert(db1.get<double>(0) == 2.1);
+    assert(db1.get<double>(1) == 3.1);
+    assert(db1.get<string>(2) == "abc");
+    assert(db1.get<string>(3) == "def");
+    assert(db1.is_empty(4));
+    assert(db1.block_size() == 3);
+    assert(db2.get<double>(0) == 1.1);
+    assert(db2.is_empty(1));
+    assert(db2.is_empty(2));
+    assert(db2.is_empty(3));
+    assert(db2.is_empty(4));
+    assert(db2.block_size() == 2);
+
+    // Swap non-empty single block with multiple destination blocks.
+    db1 = mtv_type(4, int_val);
+    db2 = mtv_type(5);
+    db2.set(0, 1.1);
+    db2.set(1, 2.1);
+    db2.set(2, 3.1);
+    db2.set(3, string("abc"));
+    db2.set(4, string("def"));
+    db1.swap(0, 3, db2, 1);
+    assert(db1.get<double>(0) == 2.1);
+    assert(db1.get<double>(1) == 3.1);
+    assert(db1.get<string>(2) == "abc");
+    assert(db1.get<string>(3) == "def");
+    assert(db1.block_size() == 2);
+    assert(db2.get<double>(0) == 1.1);
+    assert(db2.get<int>(1) == int_val);
+    assert(db2.get<int>(2) == int_val);
+    assert(db2.get<int>(3) == int_val);
+    assert(db2.get<int>(4) == int_val);
+    assert(db2.block_size() == 2);
+
+    // Another scenario.
+    db1 = mtv_type(2, short_val);
+    db2 = mtv_type(2);
+    db2.set(0, string("A"));
+    db2.set<char>(1, 'A');
+    db1.swap(0, 1, db2, 0);
+    assert(db1.get<string>(0) == "A");
+    assert(db1.get<char>(1) == 'A');
+    assert(db2.get<short>(0) == short_val);
+    assert(db2.get<short>(1) == short_val);
+
+    // Another scenario.
+    db1 = mtv_type(2, 3.14);
+    db2 = mtv_type(3);
+    db2.set(0, string("abc"));
+    db2.set<unsigned char>(1, 'z');
+    db2.set<unsigned char>(2, 'y');
+    db1.swap(0, 1, db2, 0);
+    assert(db1.get<string>(0) == "abc");
+    assert(db1.get<unsigned char>(1) == 'z');
+    assert(db2.get<double>(0) == 3.14);
+    assert(db2.get<double>(1) == 3.14);
+    assert(db2.get<unsigned char>(2) == 'y');
+
+    // Another scenario.
+    db1 = mtv_type(5);
+    db1.set<int>(0, 1);
+    db1.set<int>(1, 2);
+    db1.set<int>(2, 3);
+    db1.set<int>(3, 4);
+    db1.set<int>(4, 5);
+    db2 = mtv_type(3);
+    db2.set(0, 2.3);
+    db2.set<char>(1, 'B');
+    db2.set<long>(2, 123);
+    db1.swap(0, 2, db2, 0);
+    assert(db1.get<double>(0) == 2.3);
+    assert(db1.get<char>(1) == 'B');
+    assert(db1.get<long>(2) == 123);
+    assert(db1.get<int>(3) == 4);
+    assert(db1.get<int>(4) == 5);
+    assert(db2.get<int>(0) == 1);
+    assert(db2.get<int>(1) == 2);
+    assert(db2.get<int>(2) == 3);
+    assert(db2.block_size() == 1);
+
+    // Another one.
+    db1 = mtv_type(3, string("test"));
+    db2 = mtv_type(2);
+    db2.set(0, -99.1);
+    db2.set(1, string("foo"));
+    db1.swap(1, 2, db2, 0);
+    assert(db1.get<string>(0) == "test");
+    assert(db1.get<double>(1) == -99.1);
+    assert(db1.get<string>(2) == "foo");
+    assert(db2.get<string>(0) == "test");
+    assert(db2.get<string>(1) == "test");
+
+    // The source range is in the middle of a block.
+    db1 = mtv_type(8);
+    for (int i = 0; i < 8; ++i)
+        db1.set<int>(i, i+2);
+    db2 = mtv_type(4);
+    db2.set<int>(0, 12);
+    db2.set<short>(1, 13);
+    db2.set<long>(2, 14);
+    db2.set<double>(3, 15.0);
+    db1.swap(3, 5, db2, 1);
+
+    assert(db1.get<int>(0) == 2);
+    assert(db1.get<int>(1) == 3);
+    assert(db1.get<int>(2) == 4);
+    assert(db1.get<short>(3) == 13);
+    assert(db1.get<long>(4) == 14);
+    assert(db1.get<double>(5) == 15.0);
+    assert(db1.get<int>(6) == 8);
+    assert(db1.get<int>(7) == 9);
+
+    assert(db2.get<int>(0) == 12);
+    assert(db2.get<int>(1) == 5);
+    assert(db2.get<int>(2) == 6);
+    assert(db2.get<int>(3) == 7);
+    assert(db2.block_size() == 1);
+
+    // Try swapping in a multi-to-single block direction.
+    db1 = mtv_type(2);
+    db1.set(0, 1.2);
+    db1.set(1, string("123"));
+    db2 = mtv_type(10, short_val);
+    db1.swap(0, 1, db2, 4);
+    assert(db1.get<short>(0) == short_val);
+    assert(db1.get<short>(1) == short_val);
+
+    assert(db2.get<short>(0) == short_val);
+    assert(db2.get<short>(1) == short_val);
+    assert(db2.get<short>(2) == short_val);
+    assert(db2.get<short>(3) == short_val);
+    assert(db2.get<double>(4) == 1.2);
+    assert(db2.get<string>(5) == "123");
+    assert(db2.get<short>(6) == short_val);
+    assert(db2.get<short>(7) == short_val);
+    assert(db2.get<short>(8) == short_val);
+    assert(db2.get<short>(9) == short_val);
+
+    // Multi-to-multi block swapping. Very simple case.
+    db1 = mtv_type(2);
+    db1.set(0, 2.1);
+    db1.set(1, string("test"));
+    db2 = mtv_type(2);
+    db2.set(0, int_val);
+    db2.set(1, short_val);
+    db1.swap(0, 1, db2, 0);
+
+    assert(db1.get<int>(0) == int_val);
+    assert(db1.get<short>(1) == short_val);
+    assert(db2.get<double>(0) == 2.1);
+    assert(db2.get<string>(1) == "test");
+
+    // More complex case.
+    db1 = mtv_type(10);
+    db1.set<int>(0, 2);
+    db1.set<int>(1, 3);
+    db1.set<int>(2, 4);
+    db1.set<string>(3, "A");
+    db1.set<string>(4, "B");
+    db1.set<string>(5, "C");
+    // Leave some empty range.
+    db2 = mtv_type(10);
+    for (int i = 0; i < 10; ++i)
+        db2.set<int>(i, 10+i);
+    db2.set<char>(5, 'Z');
+    db1.swap(1, 7, db2, 2);
+
+    assert(db1.get<int>(0) == 2);
+    assert(db1.get<int>(1) == 12);
+    assert(db1.get<int>(2) == 13);
+    assert(db1.get<int>(3) == 14);
+    assert(db1.get<char>(4) == 'Z');
+    assert(db1.get<int>(5) == 16);
+    assert(db1.get<int>(6) == 17);
+    assert(db1.get<int>(7) == 18);
+    assert(db1.is_empty(8));
+    assert(db1.is_empty(9));
+    assert(db1.block_size() == 4);
+
+    assert(db2.get<int>(0) == 10);
+    assert(db2.get<int>(1) == 11);
+    assert(db2.get<int>(2) == 3);
+    assert(db2.get<int>(3) == 4);
+    assert(db2.get<string>(4) == "A");
+    assert(db2.get<string>(5) == "B");
+    assert(db2.get<string>(6) == "C");
+    assert(db2.is_empty(7));
+    assert(db2.is_empty(8));
+    assert(db2.get<int>(9) == 19);
+    assert(db2.block_size() == 4);
+}
+
+struct block_node_printer : unary_function<mtv_type::value_type, void>
+{
+    void operator() (const mtv_type::value_type& node) const
     {
-        // Default insertion which always looks up the right element block
-        // from the position of the first block.  As such, as the block size
-        // grows, so does the time it takes to search for the right block.
-
-        mtv_type db(n*2);
-        double val1 = 1.1;
-        int val2 = 23;
-        stack_printer __stack_printer__("::mtv_perf_test_block_position_lookup::default insertion");
-        for (size_t i = 0; i < n; ++i)
-        {
-            size_t pos1 = i*2, pos2 = i*2 + 1;
-            db.set(pos1, val1);
-            db.set(pos2, val2);
-        }
+        cout << "type: " << node.type << "  size: " << node.size << "  data: " << node.data << endl;
     }
+};
 
-    {
-        // As a solution for this, we can use an iterator to specify the start
-        // position, which eliminates the above scalability problem nicely.
+void mtv_test_value_type()
+{
+    stack_printer __stack_printer__("::mtv_test_value_type");
+    mtv_type db(5);
+    db.set(0, 1.1);
+    db.set(1, string("A"));
+    db.set(2, string("B"));
+    db.set(3, int(12));
+    db.set(4, short(8));
+    for_each(db.begin(), db.end(), block_node_printer());
+}
 
-        mtv_type db(n*2);
-        mtv_type::iterator pos_hint = db.begin();
-        double val1 = 1.1;
-        int val2 = 23;
-        stack_printer __stack_printer__("::mtv_perf_test_block_position_lookup::insertion with position hint");
-        for (size_t i = 0; i < n; ++i)
-        {
-            size_t pos1 = i*2, pos2 = i*2 + 1;
-            pos_hint = db.set(pos_hint, pos1, val1);
-            pos_hint = db.set(pos_hint, pos2, val2);
-        }
-    }
+void mtv_test_block_identifier()
+{
+    stack_printer __stack_printer__("::mtv_test_block_identifier");
+    assert(mtv::numeric_element_block::block_type == mtv::element_type_numeric);
+    assert(mtv::string_element_block::block_type == mtv::element_type_string);
+    assert(mtv::short_element_block::block_type == mtv::element_type_short);
+    assert(mtv::ushort_element_block::block_type == mtv::element_type_ushort);
+    assert(mtv::int_element_block::block_type == mtv::element_type_int);
+    assert(mtv::uint_element_block::block_type == mtv::element_type_uint);
+    assert(mtv::long_element_block::block_type == mtv::element_type_long);
+    assert(mtv::ulong_element_block::block_type == mtv::element_type_ulong);
+    assert(mtv::boolean_element_block::block_type == mtv::element_type_boolean);
+    assert(mtv::char_element_block::block_type == mtv::element_type_char);
+    assert(mtv::uchar_element_block::block_type == mtv::element_type_uchar);
+}
+
+void mtv_test_transfer()
+{
+    stack_printer __stack_printer__("::mtv_test_transfer");
+    mtv_type db1(5), db2(5);
+    db1.set(0, 1.0);
+    db1.set(1, 2.0);
+    mtv_type::iterator it = db1.transfer(1, 2, db2, 1);
+
+    assert(db1.get<double>(0) == 1.0);
+    assert(db1.is_empty(1));
+    assert(db1.is_empty(2));
+    assert(db1.is_empty(3));
+    assert(db1.is_empty(4));
+
+    assert(db2.is_empty(0));
+    assert(db2.get<double>(1) == 2.0);
+    assert(db2.is_empty(2));
+    assert(db2.is_empty(3));
+    assert(db2.is_empty(4));
+
+    assert(it->size == 4);
+    assert(it->__private_data.block_index == 1);
+    assert(it->position == 1);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(5);
+    db2.clear();
+    db2.resize(5);
+
+    db1.set(2, 1.2);
+    db1.set(3, 1.3);
+
+    // Transfer 1:2 in db1 to 2:3 in db2.
+    it = db1.transfer(1, 2, db2, 2);
+
+    assert(db1.is_empty(0));
+    assert(db1.is_empty(1));
+    assert(db1.is_empty(2));
+    assert(db1.get<double>(3) == 1.3);
+    assert(db1.is_empty(4));
+
+    assert(db2.is_empty(0));
+    assert(db2.is_empty(1));
+    assert(db2.is_empty(2));
+    assert(db2.get<double>(3) == 1.2);
+    assert(db2.is_empty(4));
+
+    assert(it->size == 3);
+    assert(it->position == 0);
+    assert(it->__private_data.block_index == 0);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(4);
+    db2.clear();
+    db2.resize(4);
+
+    db1.set(0, string("A"));
+    db1.set(1, string("B"));
+    db1.set(2, 11.1);
+    db1.set(3, 11.2);
+
+    it = db1.transfer(1, 2, db2, 1);
+
+    assert(db1.get<string>(0) == "A");
+    assert(db1.is_empty(1));
+    assert(db1.is_empty(2));
+    assert(db1.get<double>(3) == 11.2);
+
+    assert(db2.is_empty(0));
+    assert(db2.get<string>(1) == "B");
+    assert(db2.get<double>(2) == 11.1);
+    assert(db2.is_empty(3));
+
+    assert(it->size == 2);
+    assert(it->position == 1);
+    assert(it->__private_data.block_index == 1);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(4);
+    db2.clear();
+    db2.resize(4);
+
+    db1.set(2, 12.8);
+    it = db1.transfer(1, 2, db2, 1);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(20);
+    db2.clear();
+    db2.resize(20);
+
+    db1.set(9, 1.1);
+
+    db2.set(10, 1.2);
+    db2.set(11, 1.3);
+
+    it = db1.transfer(9, 9, db2, 9);
+
+    // The source should be entirely empty after the transfer.
+    assert(db1.block_size() == 1);
+    assert(it == db1.begin());
+    assert(it->__private_data.block_index == 0);
+    assert(it->size == 20);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db1.end());
+
+    // Check the destination as well.
+    assert(db2.block_size() == 3);
+    it = db2.begin();
+    assert(it->size == 9);
+    assert(it->__private_data.block_index == 0);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it->size == 3);
+    assert(it->__private_data.block_index == 1);
+    assert(it->type == mtv::element_type_numeric);
+    ++it;
+    assert(it->size == 8);
+    assert(it->__private_data.block_index == 2);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db2.end());
+    assert(db2.get<double>(9) == 1.1);
+    assert(db2.get<double>(10) == 1.2);
+    assert(db2.get<double>(11) == 1.3);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(20);
+    db2.clear();
+    db2.resize(20);
+
+    db1.set(8, 1.0);
+    db1.set(9, 1.1);
+
+    db2.set(10, 1.2);
+    db2.set(11, 1.3);
+
+    it = db1.transfer(9, 9, db2, 9);
+    assert(it->__private_data.block_index == 2);
+    assert(db1.block_size() == 3);
+    assert(db1.get<double>(8) == 1.0);
+    it = db1.begin();
+    assert(it->size == 8);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_numeric);
+    ++it;
+    assert(it->size == 11);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db1.end());
+}
+
+void mtv_test_push_back()
+{
+    stack_printer __stack_printer__("::mtv_test_push_back");
+
+    mtv_type db;
+    assert(db.size() == 0);
+    assert(db.block_size() == 0);
+
+    // Append an empty element into an empty container.
+    mtv_type::iterator it = db.push_back_empty();
+    assert(db.size() == 1);
+    assert(db.block_size() == 1);
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_empty);
+    assert(it->__private_data.block_index == 0);
+    assert(it == db.begin());
+    ++it;
+    assert(it == db.end());
+
+    // ... and again.
+    it = db.push_back_empty();
+    assert(db.size() == 2);
+    assert(db.block_size() == 1);
+    assert(it->size == 2);
+    assert(it->type == mtv::element_type_empty);
+    assert(it->__private_data.block_index == 0);
+    assert(it == db.begin());
+    ++it;
+    assert(it == db.end());
+
+    // Append non-empty this time.
+    it = db.push_back(1.1);
+    assert(db.size() == 3);
+    assert(db.block_size() == 2);
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_numeric);
+    assert(it->__private_data.block_index == 1);
+    mtv_type::iterator check = it;
+    --check;
+    assert(check == db.begin());
+    ++it;
+    assert(it == db.end());
+
+    // followed by an empty element again.
+    it = db.push_back_empty();
+    assert(db.size() == 4);
+    assert(db.block_size() == 3);
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_empty);
+    assert(it->__private_data.block_index == 2);
+    check = it;
+    --check;
+    --check;
+    assert(check == db.begin());
+    ++it;
+    assert(it == db.end());
+
+    // Check the values.
+    assert(db.is_empty(0));
+    assert(db.is_empty(1));
+    assert(db.get<double>(2) == 1.1);
+    assert(db.is_empty(3));
+
+    // Empty the container and push back a non-empty element.
+    db.clear();
+    it = db.push_back(string("push me"));
+    assert(db.size() == 1);
+    assert(db.block_size() == 1);
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_string);
+    assert(it->__private_data.block_index == 0);
+    assert(it == db.begin());
+    ++it;
+    assert(it == db.end());
+    assert(db.get<string>(0) == "push me");
+
+    // Push back a non-empty element of the same type.
+    it = db.push_back(string("again"));
+    assert(db.size() == 2);
+    assert(db.block_size() == 1);
+    assert(it->size == 2);
+    assert(it->type == mtv::element_type_string);
+    assert(it->__private_data.block_index == 0);
+    assert(it == db.begin());
+    ++it;
+    assert(it == db.end());
+
+    assert(db.get<string>(0) == "push me");
+    assert(db.get<string>(1) == "again");
+
+    // Push back another non-empty element of a different type.
+    it = db.push_back(23.4);
+    assert(db.size() == 3);
+    assert(db.block_size() == 2);
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_numeric);
+}
+
+void mtv_test_capacity()
+{
+    stack_printer __stack_printer__("::mtv_test_capacity");
+    mtv_type db(10, 1.1);
+    assert(db.block_size() == 1);
+    mtv_type::const_iterator it = db.begin();
+    assert(it->type == mtv::element_type_numeric);
+    size_t cap = mtv::numeric_element_block::capacity(*it->data);
+    assert(cap == 10);
+
+    db.set_empty(3, 3);
+    assert(db.block_size() == 3);
+    db.shrink_to_fit();
+    it = db.begin();
+    assert(it->type == mtv::element_type_numeric);
+    cap = mtv::numeric_element_block::capacity(*it->data);
+    assert(cap == 3);
 }
 
 }
 
 int main (int argc, char **argv)
 {
-    cmd_options opt;
-    if (!parse_cmd_options(argc, argv, opt))
-        return EXIT_FAILURE;
-
-    if (opt.test_func)
+    try
     {
         mtv_test_types();
         mtv_test_construction();
@@ -4185,11 +5160,19 @@ int main (int argc, char **argv)
         mtv_test_set_empty_with_position();
         mtv_test_insert_empty_with_position();
         mtv_test_position();
+        mtv_test_next_position();
+        mtv_test_advance_position();
+        mtv_test_swap_range();
+        mtv_test_value_type();
+        mtv_test_block_identifier();
+        mtv_test_transfer();
+        mtv_test_push_back();
+        mtv_test_capacity();
     }
-
-    if (opt.test_perf)
+    catch (const std::exception& e)
     {
-        mtv_perf_test_block_position_lookup();
+        cout << "Test failed: " << e.what() << endl;
+        return EXIT_FAILURE;
     }
 
     cout << "Test finished successfully!" << endl;

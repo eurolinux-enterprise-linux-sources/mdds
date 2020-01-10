@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2012 Kohei Yoshida
+ * Copyright (c) 2012-2016 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,14 +29,21 @@
 #define MDDS_MULTI_TYPE_VECTOR_TYPES_HPP
 
 #include "default_deleter.hpp"
-#include "compat/unique_ptr.hpp"
 #include "global.hpp"
 
+#include <algorithm>
+#include <cassert>
+#include <memory>
+
+#ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+#include <deque>
+#else
 #include <vector>
-#include <boost/noncopyable.hpp>
+#endif
 
 #if defined(MDDS_UNIT_TEST) || defined (MDDS_MULTI_TYPE_VECTOR_DEBUG)
 #include <iostream>
+#include <sstream>
 using std::cout;
 using std::cerr;
 using std::endl;
@@ -74,12 +81,17 @@ public:
 struct base_element_block;
 element_t get_block_type(const base_element_block&);
 
+/**
+ * Non-template common base type necessary for blocks of all types to be
+ * stored in a single container.
+ */
 struct base_element_block
 {
     friend element_t get_block_type(const base_element_block&);
 protected:
     element_t type;
     base_element_block(element_t _t) : type(_t) {}
+    ~base_element_block() {}
 };
 
 template<typename _Self, element_t _TypeId, typename _Data>
@@ -96,14 +108,23 @@ class element_block : public base_element_block
 #endif
 
 protected:
+#ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+    typedef std::deque<_Data> store_type;
+#else
     typedef std::vector<_Data> store_type;
+#endif
     store_type m_array;
 
     element_block() : base_element_block(_TypeId) {}
     element_block(size_t n) : base_element_block(_TypeId), m_array(n) {}
     element_block(size_t n, const _Data& val) : base_element_block(_TypeId), m_array(n, val) {}
 
+    template<typename _Iter>
+    element_block(const _Iter& it_begin, const _Iter& it_end) : base_element_block(_TypeId), m_array(it_begin, it_end) {}
+
 public:
+    static const element_t block_type = _TypeId;
+
     typedef typename store_type::iterator iterator;
     typedef typename store_type::reverse_iterator reverse_iterator;
     typedef typename store_type::const_iterator const_iterator;
@@ -128,6 +149,11 @@ public:
     static value_type& at(base_element_block& block, typename store_type::size_type pos)
     {
         return get(block).m_array.at(pos);
+    }
+
+    static typename store_type::size_type size(const base_element_block& block)
+    {
+        return get(block).m_array.size();
     }
 
     static iterator begin(base_element_block& block)
@@ -174,7 +200,11 @@ public:
     {
 #ifdef MDDS_MULTI_TYPE_VECTOR_DEBUG
         if (get_block_type(block) != _TypeId)
-            throw general_error("incorrect block type.");
+        {
+            std::ostringstream os;
+            os << "incorrect block type: expected block type=" << _TypeId << ", passed block type=" << get_block_type(block);
+            throw general_error(os.str());
+        }
 #endif
         return static_cast<_Self&>(block);
     }
@@ -183,7 +213,11 @@ public:
     {
 #ifdef MDDS_MULTI_TYPE_VECTOR_DEBUG
         if (get_block_type(block) != _TypeId)
-            throw general_error("incorrect block type.");
+        {
+            std::ostringstream os;
+            os << "incorrect block type: expected block type=" << _TypeId << ", passed block type=" << get_block_type(block);
+            throw general_error(os.str());
+        }
 #endif
         return static_cast<const _Self&>(block);
     }
@@ -196,6 +230,11 @@ public:
     static void get_value(const base_element_block& blk, size_t pos, _Data& val)
     {
         val = get(blk).m_array[pos];
+    }
+
+    static value_type get_value(const base_element_block& blk, size_t pos)
+    {
+        return get(blk).m_array[pos];
     }
 
     static void append_value(base_element_block& blk, const _Data& val)
@@ -221,7 +260,13 @@ public:
 
     static void resize_block(base_element_block& blk, size_t new_size)
     {
-        static_cast<_Self&>(blk).m_array.resize(new_size);
+        store_type& st = get(blk).m_array;
+        st.resize(new_size);
+
+        // Test if the vector's capacity is larger than twice its current
+        // size, and if so, shrink its capacity to free up some memory.
+        if (new_size < (st.capacity() / 2))
+            st.shrink_to_fit();
     }
 
 #ifdef MDDS_UNIT_TEST
@@ -259,12 +304,11 @@ public:
     {
         store_type& d = get(dest).m_array;
         const store_type& s = get(src).m_array;
-        typename store_type::const_iterator it = s.begin();
-        std::advance(it, begin_pos);
-        typename store_type::const_iterator it_end = it;
-        std::advance(it_end, len);
+        std::pair<const_iterator,const_iterator> its = get_iterator_pair(s, begin_pos, len);
+#ifndef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
         d.reserve(d.size() + len);
-        std::copy(it, it_end, std::back_inserter(d));
+#endif
+        d.insert(d.end(), its.first, its.second);
     }
 
     static void assign_values_from_block(
@@ -272,12 +316,43 @@ public:
     {
         store_type& d = get(dest).m_array;
         const store_type& s = get(src).m_array;
-        assert(begin_pos + len <= s.size());
-        typename store_type::const_iterator it = s.begin();
-        std::advance(it, begin_pos);
-        typename store_type::const_iterator it_end = it;
-        std::advance(it_end, len);
-        d.assign(it, it_end);
+        std::pair<const_iterator,const_iterator> its = get_iterator_pair(s, begin_pos, len);
+        d.assign(its.first, its.second);
+    }
+
+    static void prepend_values_from_block(
+        base_element_block& dest, const base_element_block& src, size_t begin_pos, size_t len)
+    {
+        store_type& d = get(dest).m_array;
+        const store_type& s = get(src).m_array;
+        std::pair<const_iterator,const_iterator> its = get_iterator_pair(s, begin_pos, len);
+#ifndef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+        d.reserve(d.size() + len);
+#endif
+        d.insert(d.begin(), its.first, its.second);
+    }
+
+    static void swap_values(
+        base_element_block& blk1, base_element_block& blk2, size_t pos1, size_t pos2, size_t len)
+    {
+        store_type& st1 = get(blk1).m_array;
+        store_type& st2 = get(blk2).m_array;
+        assert(pos1 + len <= st1.size());
+        assert(pos2 + len <= st2.size());
+
+        typename store_type::iterator it1 = st1.begin(), it2 = st2.begin();
+        std::advance(it1, pos1);
+        std::advance(it2, pos2);
+        for (size_t i = 0; i < len; ++i, ++it1, ++it2)
+        {
+#ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+            std::swap(*it1, *it2);
+#else
+            value_type v1 = *it1, v2 = *it2;
+            *it1 = v2;
+            *it2 = v1;
+#endif
+        }
     }
 
     template<typename _Iter>
@@ -285,8 +360,10 @@ public:
         base_element_block& block, size_t pos, const _Iter& it_begin, const _Iter& it_end)
     {
         store_type& d = get(block).m_array;
-        for (_Iter it = it_begin; it != it_end; ++it, ++pos)
-            d[pos] = *it;
+        typename store_type::iterator it_dest = d.begin();
+        std::advance(it_dest, pos);
+        for (_Iter it = it_begin; it != it_end; ++it, ++it_dest)
+            *it_dest = *it;
     }
 
     template<typename _Iter>
@@ -318,6 +395,35 @@ public:
         store_type& blk = get(block).m_array;
         blk.insert(blk.begin()+pos, it_begin, it_end);
     }
+
+    static size_t capacity(const base_element_block& block)
+    {
+#ifdef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+        return 0;
+#else
+        const store_type& blk = get(block).m_array;
+        return blk.capacity();
+#endif
+    }
+
+    static void shrink_to_fit(base_element_block& block)
+    {
+#ifndef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
+        get(block).m_array.shrink_to_fit();
+#endif
+    }
+
+private:
+    static std::pair<const_iterator,const_iterator>
+    get_iterator_pair(const store_type& array, size_t begin_pos, size_t len)
+    {
+        assert(begin_pos + len <= array.size());
+        const_iterator it = array.begin();
+        std::advance(it, begin_pos);
+        const_iterator it_end = it;
+        std::advance(it_end, len);
+        return std::pair<const_iterator,const_iterator>(it, it_end);
+    }
 };
 
 template<typename _Self, element_t _TypeId, typename _Data>
@@ -329,17 +435,21 @@ protected:
     copyable_element_block(size_t n) : base_type(n) {}
     copyable_element_block(size_t n, const _Data& val) : base_type(n, val) {}
 
+    template<typename _Iter>
+    copyable_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
+
 public:
     using base_type::get;
 
     static _Self* clone_block(const base_element_block& blk)
     {
+        // Use copy constructor to copy the data.
         return new _Self(get(blk));
     }
 };
 
 template<typename _Self, element_t _TypeId, typename _Data>
-class noncopyable_element_block : public element_block<_Self, _TypeId, _Data>, private boost::noncopyable
+class noncopyable_element_block : public element_block<_Self, _TypeId, _Data>
 {
     typedef element_block<_Self,_TypeId,_Data> base_type;
 protected:
@@ -347,7 +457,13 @@ protected:
     noncopyable_element_block(size_t n) : base_type(n) {}
     noncopyable_element_block(size_t n, const _Data& val) : base_type(n, val) {}
 
+    template<typename _Iter>
+    noncopyable_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
+
 public:
+    noncopyable_element_block(const noncopyable_element_block&) = delete;
+    noncopyable_element_block& operator=(const noncopyable_element_block&) = delete;
+
     static _Self* clone_block(const base_element_block&)
     {
         throw element_block_error("attempted to clone a noncopyable element block.");
@@ -380,9 +496,18 @@ struct default_element_block : public copyable_element_block<default_element_blo
     default_element_block(size_t n) : base_type(n) {}
     default_element_block(size_t n, const _Data& val) : base_type(n, val) {}
 
+    template<typename _Iter>
+    default_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
+
     static self_type* create_block_with_value(size_t init_size, const _Data& val)
     {
         return new self_type(init_size, val);
+    }
+
+    template<typename _Iter>
+    static self_type* create_block_with_values(const _Iter& it_begin, const _Iter& it_end)
+    {
+        return new self_type(it_begin, it_end);
     }
 
     static void overwrite_values(base_element_block&, size_t, size_t)
@@ -409,11 +534,16 @@ struct managed_element_block : public copyable_element_block<managed_element_blo
     managed_element_block(size_t n) : base_type(n) {}
     managed_element_block(const managed_element_block& r)
     {
+#ifndef MDDS_MULTI_TYPE_VECTOR_USE_DEQUE
         m_array.reserve(r.m_array.size());
+#endif
         typename managed_element_block::store_type::const_iterator it = r.m_array.begin(), it_end = r.m_array.end();
         for (; it != it_end; ++it)
             m_array.push_back(new _Data(**it));
     }
+
+    template<typename _Iter>
+    managed_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
 
     ~managed_element_block()
     {
@@ -426,11 +556,17 @@ struct managed_element_block : public copyable_element_block<managed_element_blo
         if (init_size > 1)
             throw general_error("You can't create a managed block with initial value.");
 
-        unique_ptr<self_type> blk(new self_type(init_size));
+        std::unique_ptr<self_type> blk = make_unique<self_type>(init_size);
         if (init_size == 1)
             set_value(*blk, 0, val);
 
         return blk.release();
+    }
+
+    template<typename _Iter>
+    static self_type* create_block_with_values(const _Iter& it_begin, const _Iter& it_end)
+    {
+        return new self_type(it_begin, it_end);
     }
 
     static void overwrite_values(base_element_block& block, size_t pos, size_t len)
@@ -455,6 +591,9 @@ struct noncopyable_managed_element_block : public noncopyable_element_block<nonc
     noncopyable_managed_element_block() : base_type() {}
     noncopyable_managed_element_block(size_t n) : base_type(n) {}
 
+    template<typename _Iter>
+    noncopyable_managed_element_block(const _Iter& it_begin, const _Iter& it_end) : base_type(it_begin, it_end) {}
+
     ~noncopyable_managed_element_block()
     {
         std::for_each(m_array.begin(), m_array.end(), mdds::default_deleter<_Data>());
@@ -466,11 +605,17 @@ struct noncopyable_managed_element_block : public noncopyable_element_block<nonc
         if (init_size > 1)
             throw general_error("You can't create a managed block with initial value.");
 
-        unique_ptr<self_type> blk(new self_type(init_size));
+        std::unique_ptr<self_type> blk = make_unique<self_type>(init_size);
         if (init_size == 1)
             set_value(*blk, 0, val);
 
         return blk.release();
+    }
+
+    template<typename _Iter>
+    static self_type* create_block_with_values(const _Iter& it_begin, const _Iter& it_end)
+    {
+        return new self_type(it_begin, it_end);
     }
 
     static void overwrite_values(base_element_block& block, size_t pos, size_t len)

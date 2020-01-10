@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2010, 2011 Kohei Yoshida
+ * Copyright (c) 2010-2015 Kohei Yoshida
  * 
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,24 +25,20 @@
  *
  ************************************************************************/
 
-#ifndef __MDDS_RECTANGLE_SET_HPP__
-#define __MDDS_RECTANGLE_SET_HPP__
+#ifndef INCLUDED_MDDS_RECTANGLE_SET_HPP
+#define INCLUDED_MDDS_RECTANGLE_SET_HPP
 
 #include "segment_tree.hpp"
 #include "global.hpp"
-#include "hash_container/map.hpp"
-
-#include <vector>
-#include <boost/ptr_container/ptr_map.hpp>
 
 namespace mdds {
 
-template<typename _Key, typename _Data>
+template<typename _Key, typename _Value>
 class rectangle_set
 {
 public:
     typedef _Key    key_type;
-    typedef _Data   data_type;
+    typedef _Value  value_type;
 
 #ifdef MDDS_UNIT_TEST
 public:
@@ -81,13 +77,13 @@ private:
             return !operator==(r);
         }
     };
-    typedef _mdds_unordered_map_type<data_type*, rectangle>    dataset_type;
+    typedef std::unordered_map<value_type, rectangle>    dataset_type;
 private:
-    typedef segment_tree<key_type, data_type>   inner_type;
-    typedef segment_tree<key_type, inner_type>  outer_type;
+    typedef segment_tree<key_type, value_type>   inner_type;
+    typedef segment_tree<key_type, inner_type*>  outer_type;
 
-    typedef ::std::pair<key_type, key_type>             interval_type;
-    typedef ::boost::ptr_map<interval_type, inner_type> inner_segment_map_type;
+    typedef std::pair<key_type, key_type>             interval_type;
+    typedef std::map<interval_type, std::unique_ptr<inner_type>> inner_segment_map_type;
 
 public:
     typedef typename inner_type::search_result_type search_result_type;
@@ -108,7 +104,7 @@ public:
 
         class iterator : public inner_type::iterator_base
         {
-            friend class rectangle_set<_Key,_Data>::search_result;
+            friend class rectangle_set<_Key,_Value>::search_result;
         private:
             iterator(const res_chains_ptr& p) : inner_type::iterator_base(p) {}
         public:
@@ -167,7 +163,7 @@ public:
      * 
      * @return true if a rectangle successfully inserted, false otherwise.
      */
-    bool insert(key_type x1, key_type y1, key_type x2, key_type y2, data_type* data);
+    bool insert(key_type x1, key_type y1, key_type x2, key_type y2, value_type data);
 
     /** 
      * Search and collect all rectangles that contains a given point.
@@ -197,7 +193,7 @@ public:
      * @param data pointer that points to the rectangle instance you wish to 
      *             remove from the set.
      */
-    void remove(data_type* data);
+    void remove(value_type data);
 
     /** 
      * Clear all rectangles stored in the set.
@@ -219,6 +215,7 @@ public:
     bool empty() const;
 
 private:
+    void build_inner_map(const inner_segment_map_type& r);
     void build_outer_segment_tree();
 
 #ifdef MDDS_UNIT_TEST

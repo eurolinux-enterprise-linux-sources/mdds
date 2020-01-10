@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- * Copyright (c) 2008-2011 Kohei Yoshida
+ * Copyright (c) 2008-2015 Kohei Yoshida
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,11 +25,33 @@
  *
  ************************************************************************/
 
-#ifndef __MDDS_GLOBAL_HPP__
-#define __MDDS_GLOBAL_HPP__
+#ifndef INCLUDED_MDDS_GLOBAL_HPP
+#define INCLUDED_MDDS_GLOBAL_HPP
 
 #include <exception>
 #include <string>
+#include <memory>
+#include <utility>
+
+/**
+ * \def MDDS_ASCII(literal)
+ *
+ * Expands a \a literal string into two arguments: the first one is the
+ * literal string itself, and the second one is the length of that string.
+ *
+ * Note that this macro only works with literal strings defined inline; it
+ * does not work with pointer values that point to strings defined
+ * elsewhere.
+ */
+#define MDDS_ASCII(literal) literal, sizeof(literal)-1
+
+/**
+ * \def MDDS_N_ELEMENTS(name)
+ *
+ * Calculates the length of \a name array provided that the array definition
+ * is given in the same compilation unit.
+ */
+#define MDDS_N_ELEMENTS(name) sizeof(name)/sizeof(name[0])
 
 namespace mdds {
 
@@ -52,6 +74,24 @@ class invalid_arg_error : public general_error
 public:
     invalid_arg_error(const ::std::string& msg) : general_error(msg) {}
 };
+
+class size_error : public general_error
+{
+public:
+    size_error(const std::string& msg) : general_error(msg) {}
+};
+
+class type_error : public general_error
+{
+public:
+    type_error(const std::string& msg) : general_error(msg) {}
+};
+
+template<typename T, typename ...Args>
+std::unique_ptr<T> make_unique(Args&& ...args)
+{
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 }
 

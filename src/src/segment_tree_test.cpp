@@ -87,12 +87,12 @@ struct test_data
     };
 };
 
-template<typename key_type, typename data_type>
+template<typename key_type, typename value_type>
 bool check_leaf_nodes(
-    const segment_tree<key_type, data_type>& db,
-    const key_type* keys, data_type** data_chain, size_t key_size)
+    const segment_tree<key_type, value_type>& db,
+    const key_type* keys, value_type* data_chain, size_t key_size)
 {
-    typedef segment_tree<key_type, data_type> st_type;
+    typedef segment_tree<key_type, value_type> st_type;
     vector<typename st_type::leaf_node_check> checks;
     checks.reserve(key_size);
     size_t dcid = 0;
@@ -100,7 +100,7 @@ bool check_leaf_nodes(
     {
         typename st_type::leaf_node_check c;
         c.key = keys[i];
-        data_type* p = data_chain[dcid];
+        value_type p = data_chain[dcid];
         while (p)
         {
             c.data_chain.push_back(p);
@@ -113,12 +113,12 @@ bool check_leaf_nodes(
     return db.verify_leaf_nodes(checks);
 }
 
-template<typename data_type>
-bool check_against_expected(const list<const data_type*>& test, data_type** expected)
+template<typename value_type>
+bool check_against_expected(const list<value_type>& test, value_type* expected)
 {
     size_t i = 0;
-    data_type* p = expected[i++];
-    typename list<const data_type*>::const_iterator itr = test.begin(), itr_end = test.end();
+    value_type p = expected[i++];
+    typename list<value_type>::const_iterator itr = test.begin(), itr_end = test.end();
     while (p)
     {
         if (itr == itr_end)
@@ -143,16 +143,15 @@ bool check_against_expected(const list<const data_type*>& test, data_type** expe
  * Only check the search result against expected result set.  The caller
  * needs to run search and pass the result to this function.
  */
-template<typename key_type, typename data_type>
+template<typename key_type, typename value_type>
 bool check_search_result_only(
-    const segment_tree<key_type, data_type>& db,
-    const typename segment_tree<key_type, data_type>::search_result_type& result,
-    key_type key, data_type** expected)
+    const segment_tree<key_type, value_type>& db,
+    const typename segment_tree<key_type, value_type>::search_result_type& result,
+    key_type key, value_type* expected)
 {
     cout << "search key: " << key << " ";
 
-    typedef typename segment_tree<key_type, data_type>::search_result_type search_result_type;
-    list<const data_type*> test;
+    list<value_type> test;
     copy(result.begin(), result.end(), back_inserter(test));
     test.sort(test_data::sort_by_name());
 
@@ -166,29 +165,29 @@ bool check_search_result_only(
 /**
  * Run the search and check the search result.
  */
-template<typename key_type, typename data_type>
+template<typename key_type, typename value_type>
 bool check_search_result(
-    const segment_tree<key_type, data_type>& db,
-    key_type key, data_type** expected)
+    const segment_tree<key_type, value_type>& db,
+    key_type key, value_type* expected)
 {
     cout << "search key: " << key << " ";
 
-    typedef typename segment_tree<key_type, data_type>::search_result_type search_result_type;
+    typedef typename segment_tree<key_type, value_type>::search_result_type search_result_type;
     search_result_type data_chain;
     db.search(key, data_chain);
     return check_search_result_only(db, data_chain, key, expected);
 }
 
-template<typename key_type, typename data_type>
+template<typename key_type, typename value_type>
 bool check_search_result_iterator(
-    const segment_tree<key_type, data_type>& db,
-    key_type key, data_type** expected)
+    const segment_tree<key_type, value_type>& db,
+    key_type key, value_type* expected)
 {
     cout << "search key: " << key << " ";
 
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef segment_tree<key_type, value_type> db_type;
     typename db_type::search_result result = db.search(key);
-    list<const data_type*> test;
+    list<value_type> test;
     copy(result.begin(), result.end(), back_inserter(test));
     test.sort(test_data::sort_by_name());
 
@@ -204,11 +203,11 @@ void st_test_insert_search_removal()
     stack_printer __stack_printer__("::st_test_insert_segments");
 
     typedef long key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
     db_type db;
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
 
     build_and_dump(db);
     assert(db_type::node::get_instance_count() == 0);
@@ -217,9 +216,9 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 10};
-        data_type* data_chain[] = {&A, 0, 0};
+        value_type* data_chain[] = {&A, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 3);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -227,18 +226,18 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 5, 10};
-        data_type* data_chain[] = {&A, &B, 0, &A, 0, 0};
+        value_type* data_chain[] = {&A, &B, 0, &A, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 6);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
     }
 
     db.insert(5, 12, &C);
     build_and_dump(db);
     {
         key_type keys[] = {0, 5, 10, 12};
-        data_type* data_chain[] = {&A, &B, 0, &A, &C, 0, &C, 0, 0};
+        value_type* data_chain[] = {&A, &B, 0, &A, &C, 0, &C, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 7);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -246,9 +245,9 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 5, 10, 12, 24};
-        data_type* data_chain[] = {&A, &B, 0, &A, &C, 0, &C, &D, 0, &D, 0, 0};
+        value_type* data_chain[] = {&A, &B, 0, &A, &C, 0, &C, &D, 0, &D, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 11);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -256,9 +255,9 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 4, 5, 10, 12, 24};
-        data_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, 0, 0};
+        value_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 12);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -266,9 +265,9 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 4, 5, 10, 12, 24, 26};
-        data_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, &F, 0, &F, 0, 0};
+        value_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, &F, 0, &F, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 14);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -276,9 +275,9 @@ void st_test_insert_search_removal()
     build_and_dump(db);
     {
         key_type keys[] = {0, 4, 5, 10, 12, 24, 26};
-        data_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, &F, &G, 0, &F, &G, 0, 0};
+        value_type* data_chain[] = {&B, 0, &B, &E, 0, &A, &C, 0, &C, &D, 0, &D, &E, &F, &G, 0, &F, &G, 0, 0};
         assert(check_leaf_nodes(db, keys, data_chain, ARRAY_SIZE(keys)));
-        assert(db_type::node::get_instance_count() == 14);
+        assert(db_type::node::get_instance_count() == db.leaf_size());
         assert(db.verify_node_lists());
     }
 
@@ -295,55 +294,55 @@ void st_test_insert_search_removal()
 
     {
         key_type key = -1;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 0;
-        data_type* expected[] = {&A, &B, &F, 0};
+        value_type* expected[] = {&A, &B, &F, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 4;
-        data_type* expected[] = {&A, &B, &E, &F, 0};
+        value_type* expected[] = {&A, &B, &E, &F, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 5;
-        data_type* expected[] = {&A, &C, &E, &F, 0};
+        value_type* expected[] = {&A, &C, &E, &F, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 10;
-        data_type* expected[] = {&C, &D, &E, &F, 0};
+        value_type* expected[] = {&C, &D, &E, &F, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 12;
-        data_type* expected[] = {&D, &E, &F, &G, 0};
+        value_type* expected[] = {&D, &E, &F, &G, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 24;
-        data_type* expected[] = {&F, &G, 0};
+        value_type* expected[] = {&F, &G, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 30;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 9999;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
@@ -367,55 +366,55 @@ void st_test_insert_search_removal()
 
     {
         key_type key = -1;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 0;
-        data_type* expected[] = {&A, &B, 0};
+        value_type* expected[] = {&A, &B, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 4;
-        data_type* expected[] = {&A, &B, 0};
+        value_type* expected[] = {&A, &B, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 5;
-        data_type* expected[] = {&A, &C, 0};
+        value_type* expected[] = {&A, &C, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 10;
-        data_type* expected[] = {&C, &D, 0};
+        value_type* expected[] = {&C, &D, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 12;
-        data_type* expected[] = {&D, 0};
+        value_type* expected[] = {&D, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 24;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 30;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 9999;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
@@ -428,49 +427,49 @@ void st_test_insert_search_removal()
 
     {
         key_type key = -1;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 0;
-        data_type* expected[] = {&A, &B, 0};
+        value_type* expected[] = {&A, &B, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 4;
-        data_type* expected[] = {&A, &B, 0};
+        value_type* expected[] = {&A, &B, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 5;
-        data_type* expected[] = {&A, &C, 0};
+        value_type* expected[] = {&A, &C, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 10;
-        data_type* expected[] = {&C, &D, 0};
+        value_type* expected[] = {&C, &D, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 12;
-        data_type* expected[] = {&D, 0};
+        value_type* expected[] = {&D, 0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 24;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 
     {
         key_type key = 30;
-        data_type* expected[] = {0};
+        value_type* expected[] = {0};
         assert(check_search_result(db, key, expected));
     }
 }
@@ -480,11 +479,11 @@ void st_test_copy_constructor()
     stack_printer __stack_printer__("::st_test_copy_constructor");
 
     typedef long key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
     db_type db;
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
     vector<db_type::segment_data> segments;
     segments.push_back(db_type::segment_data( 0, 10, &A));
     segments.push_back(db_type::segment_data( 0,  5, &B));
@@ -493,7 +492,7 @@ void st_test_copy_constructor()
     segments.push_back(db_type::segment_data( 4, 24, &E));
     segments.push_back(db_type::segment_data( 0, 26, &F));
     segments.push_back(db_type::segment_data(12, 26, &G));
-    segments.push_back(db_type::segment_data(0, 0, NULL)); // null-terminated
+    segments.push_back(db_type::segment_data(0, 0, nullptr)); // null-terminated
 
     db_type::segment_map_type checks;
     for (size_t i = 0; segments[i].pdata; ++i)
@@ -531,10 +530,10 @@ void st_test_equality()
     stack_printer __stack_printer__("::st_test_equality");
 
     typedef uint32_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
     {
         db_type db1, db2;
         db1.insert(0, 10, &A);
@@ -561,10 +560,10 @@ void st_test_clear()
     stack_printer __stack_printer__("::st_test_clear");
 
     typedef uint8_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
 
     vector<db_type::segment_data> segments;
     segments.push_back(db_type::segment_data( 0, 10, &A));
@@ -574,7 +573,7 @@ void st_test_clear()
     segments.push_back(db_type::segment_data( 4, 24, &E));
     segments.push_back(db_type::segment_data( 0, 26, &F));
     segments.push_back(db_type::segment_data(12, 26, &G));
-    segments.push_back(db_type::segment_data(0, 0, NULL)); // null-terminated
+    segments.push_back(db_type::segment_data(0, 0, nullptr)); // null-terminated
 
     db_type db;
     for (size_t i = 0; segments[i].pdata; ++i)
@@ -606,10 +605,10 @@ void st_test_duplicate_insertion()
     stack_printer __stack_printer__("::st_test_duplicate_insertion");
 
     typedef short key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
 
     db_type db;
     assert( db.insert(0, 10, &A));
@@ -631,8 +630,8 @@ void st_test_search_on_uneven_tree()
     stack_printer __stack_printer__("::st_test_search_on_uneven_tree");
 
     typedef int16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
     for (key_type data_count = 10; data_count < 20; ++data_count)
     {
@@ -673,8 +672,8 @@ void st_test_perf_insertion()
     stack_printer __stack_printer__("::st_test_perf_insertion");
 
     typedef uint32_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
     key_type data_count = 1000000;
 
@@ -709,7 +708,7 @@ void st_test_perf_insertion()
     }
     assert(db.is_tree_valid());
 
-    const test_data* test;
+    const test_data* test = nullptr;
     {
         stack_printer __stack_printer2__("::st_test_perf_insertion:: 200 searches with max results");
         for (key_type i = 0; i < 200; ++i)
@@ -718,7 +717,10 @@ void st_test_perf_insertion()
             db.search(0, result);
             db_type::search_result_type::const_iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -729,7 +731,10 @@ void st_test_perf_insertion()
             db_type::search_result result = db.search(0);
             db_type::search_result::iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -741,7 +746,10 @@ void st_test_perf_insertion()
             db.search(data_count/2, result);
             db_type::search_result_type::const_iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -752,7 +760,10 @@ void st_test_perf_insertion()
             db_type::search_result result = db.search(data_count/2);
             db_type::search_result::iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -764,7 +775,10 @@ void st_test_perf_insertion()
             db.search(data_count, result);
             db_type::search_result_type::const_iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -775,7 +789,10 @@ void st_test_perf_insertion()
             db_type::search_result result = db.search(data_count);
             db_type::search_result::iterator itr = result.begin(), itr_end = result.end();
             for (; itr != itr_end; ++itr)
+            {
                 test = *itr;
+                assert(test);
+            }
         }
     }
 
@@ -800,10 +817,10 @@ void st_test_aggregated_search_results()
     stack_printer __stack_printer__("::st_test_aggregated_search_results");
 
     typedef uint16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
 
     vector<db_type::segment_data> segments;
     segments.push_back(db_type::segment_data( 0, 10, &A));
@@ -813,7 +830,7 @@ void st_test_aggregated_search_results()
     segments.push_back(db_type::segment_data( 4, 24, &E));
     segments.push_back(db_type::segment_data( 0, 26, &F));
     segments.push_back(db_type::segment_data(12, 26, &G));
-    segments.push_back(db_type::segment_data(0, 0, NULL)); // null-terminated
+    segments.push_back(db_type::segment_data(0, 0, nullptr)); // null-terminated
 
     db_type db;
     for (size_t i = 0; segments[i].pdata; ++i)
@@ -826,7 +843,7 @@ void st_test_aggregated_search_results()
     {
         key_type key = 0;
         db.search(key, result);
-        data_type* expected[] = {&A, &B, &F, 0};
+        value_type* expected[] = {&A, &B, &F, 0};
         assert(check_search_result_only(db, result, key, expected));
     }
 
@@ -834,14 +851,14 @@ void st_test_aggregated_search_results()
         key_type key = 10;
         db.search(key, result);
         // Note the duplicated F's in the search result.
-        data_type* expected[] = {&A, &B, &C, &D, &E, &F, &F, 0};
+        value_type* expected[] = {&A, &B, &C, &D, &E, &F, &F, 0};
         assert(check_search_result_only(db, result, key, expected));
     }
 
     {
         key_type key = 5;
         db.search(key, result);
-        data_type* expected[] = {&A, &A, &B, &C, &C, &D, &E, &E, &F, &F, &F, 0};
+        value_type* expected[] = {&A, &A, &B, &C, &C, &D, &E, &E, &F, &F, &F, 0};
         assert(check_search_result_only(db, result, key, expected));
     }
 
@@ -849,7 +866,7 @@ void st_test_aggregated_search_results()
         result.clear(); // clear the accumulated result set.
         key_type key = 5;
         db.search(key, result);
-        data_type* expected[] = {&A, &C, &E, &F, 0};
+        value_type* expected[] = {&A, &C, &E, &F, 0};
         assert(check_search_result_only(db, result, key, expected));
     }
 }
@@ -859,10 +876,10 @@ void st_test_dense_tree_search()
     stack_printer __stack_printer__("::st_test_dense_tree_search");
 
     typedef uint16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
     db_type db;
     db.insert(0, 1, &A);
     db.insert(0, 2, &B);
@@ -876,43 +893,43 @@ void st_test_dense_tree_search()
     db.dump_leaf_nodes();
 
     {
-        db_type::data_type* expected[] = {&A, &B, &C, &D, &E, &F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 0, expected);
+        db_type::value_type expected[] = {&A, &B, &C, &D, &E, &F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 0, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&B, &C, &D, &E, &F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 1, expected);
+        db_type::value_type expected[] = {&B, &C, &D, &E, &F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 1, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&C, &D, &E, &F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 2, expected);
+        db_type::value_type expected[] = {&C, &D, &E, &F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 2, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&D, &E, &F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 3, expected);
+        db_type::value_type expected[] = {&D, &E, &F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 3, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&E, &F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 4, expected);
+        db_type::value_type expected[] = {&E, &F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 4, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&F, &G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 5, expected);
+        db_type::value_type expected[] = {&F, &G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 5, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {&G, 0};
-        bool success = check_search_result<key_type, data_type>(db, 6, expected);
+        db_type::value_type expected[] = {&G, 0};
+        bool success = check_search_result<key_type, value_type*>(db, 6, expected);
         assert(success);
     }
     {
-        db_type::data_type* expected[] = {0};
-        bool success = check_search_result<key_type, data_type>(db, 7, expected);
+        db_type::value_type expected[] = {0};
+        bool success = check_search_result<key_type, value_type*>(db, 7, expected);
         assert(success);
     }
 }
@@ -922,8 +939,8 @@ void st_test_search_on_empty_set()
     stack_printer __stack_printer__("::st_test_search_on_empty_set");
 
     typedef uint16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
     db_type db;
     db.build_tree();
@@ -940,10 +957,10 @@ void st_test_search_iterator_basic()
 {
     stack_printer __stack_printer__("::st_test_search_iterator");
     typedef uint16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
     db_type db;
     db.insert(0, 1, &A);
     db.insert(0, 2, &B);
@@ -994,10 +1011,10 @@ void st_test_search_iterator_result_check()
     stack_printer __stack_printer__("::st_test_search_iterator_result_check");
 
     typedef uint16_t key_type;
-    typedef test_data data_type;
-    typedef segment_tree<key_type, data_type> db_type;
+    typedef test_data value_type;
+    typedef segment_tree<key_type, value_type*> db_type;
 
-    data_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
+    value_type A("A"), B("B"), C("C"), D("D"), E("E"), F("F"), G("G");
     db_type db;
     db.insert(0, 1, &A);
     db.insert(0, 2, &B);
@@ -1009,43 +1026,43 @@ void st_test_search_iterator_result_check()
     db.build_tree();
 
     {
-        data_type* expected[] = {&A, &B, &C, &D, &E, &F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 0, expected);
+        value_type* expected[] = {&A, &B, &C, &D, &E, &F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 0, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&B, &C, &D, &E, &F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 1, expected);
+        value_type* expected[] = {&B, &C, &D, &E, &F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 1, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&C, &D, &E, &F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 2, expected);
+        value_type* expected[] = {&C, &D, &E, &F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 2, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&D, &E, &F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 3, expected);
+        value_type* expected[] = {&D, &E, &F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 3, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&E, &F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 4, expected);
+        value_type* expected[] = {&E, &F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 4, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&F, &G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 5, expected);
+        value_type* expected[] = {&F, &G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 5, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {&G, 0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 6, expected);
+        value_type* expected[] = {&G, 0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 6, expected);
         assert(success);
     }
     {
-        data_type* expected[] = {0};
-        bool success = check_search_result_iterator<key_type, data_type>(db, 7, expected);
+        value_type* expected[] = {0};
+        bool success = check_search_result_iterator<key_type, value_type*>(db, 7, expected);
         assert(success);
     }
 }
@@ -1057,45 +1074,70 @@ void st_test_search_iterator_result_check()
 void st_test_empty_result_set()
 {
     stack_printer __stack_printer__("::st_test_empty_result_set");
-    typedef segment_tree<long, string> db_type;
+    typedef segment_tree<long, string*> db_type;
     db_type db;
     db_type::search_result result = db.search(0);
     cout << "size of empty result set: " << result.size() << endl;
     assert(result.size() == 0);
 }
 
+void st_test_non_pointer_data()
+{
+    stack_printer __stack_printer__("::st_test_non_pointer_data");
+
+    typedef uint16_t key_type;
+    typedef size_t value_type;
+    typedef segment_tree<key_type, value_type> db_type;
+
+    db_type db;
+    db.insert(0, 1, 10);
+    db.build_tree();
+
+    db_type::search_result result = db.search(0);
+    assert(result.size() == 1);
+    assert(*result.begin() == 10);
+}
+
 int main(int argc, char** argv)
 {
-    cmd_options opt;
-    if (!parse_cmd_options(argc, argv, opt))
+    try
+    {
+        cmd_options opt;
+        if (!parse_cmd_options(argc, argv, opt))
+            return EXIT_FAILURE;
+
+        if (opt.test_func)
+        {
+            st_test_insert_search_removal();
+            st_test_copy_constructor();
+            st_test_equality();
+            st_test_clear();
+            st_test_duplicate_insertion();
+            st_test_search_on_uneven_tree();
+            st_test_aggregated_search_results();
+            st_test_dense_tree_search();
+            st_test_search_on_empty_set();
+            st_test_search_iterator_basic();
+            st_test_search_iterator_result_check();
+            st_test_empty_result_set();
+            st_test_non_pointer_data();
+        }
+
+        if (opt.test_perf)
+        {
+            st_test_perf_insertion();
+        }
+
+        // At this point, all of the nodes created during the test run should have
+        // been destroyed.  If not, we are leaking memory.
+        typedef segment_tree<uint32_t, void*> db_type;
+        assert(db_type::node::get_instance_count() == 0);
+    }
+    catch (const std::exception& e)
+    {
+        fprintf(stdout, "Test failed: %s\n", e.what());
         return EXIT_FAILURE;
-
-    if (opt.test_func)
-    {
-        st_test_insert_search_removal();
-        st_test_copy_constructor();
-        st_test_equality();
-        st_test_clear();
-        st_test_duplicate_insertion();
-        st_test_search_on_uneven_tree();
-        st_test_aggregated_search_results();
-        st_test_dense_tree_search();
-        st_test_search_on_empty_set();
-        st_test_search_iterator_basic();
-        st_test_search_iterator_result_check();
-        st_test_empty_result_set();
     }
-
-    if (opt.test_perf)
-    {
-        st_test_perf_insertion();
-    }
-
-    // At this point, all of the nodes created during the test run should have
-    // been destroyed.  If not, we are leaking memory.
-    typedef segment_tree<uint32_t, void> db_type;
-    assert(db_type::node::get_instance_count() == 0);
-
     fprintf(stdout, "Test finished successfully!\n");
     return EXIT_SUCCESS;
 }

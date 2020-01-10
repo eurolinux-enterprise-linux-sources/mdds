@@ -48,9 +48,9 @@ struct data_printer : public unary_function<string*, void>
 };
 
 template<typename _DbType>
-struct search_result_printer : public unary_function<pair<typename _DbType::point, typename _DbType::data_type>, void>
+struct search_result_printer : public unary_function<pair<typename _DbType::point, typename _DbType::value_type>, void>
 {
-    void operator() (const pair<const typename _DbType::point, const typename _DbType::data_type>& r) const
+    void operator() (const pair<const typename _DbType::point, const typename _DbType::value_type>& r) const
     {
         cout << "  (x=" << r.first.x << ", y=" << r.first.y << ", value='" << *r.second << "')" << endl;
     }
@@ -113,8 +113,8 @@ void pqt_test_basic()
         cout << endl;
     }
 
-    db_type::search_result result = db.search_region(10, 10, 60, 20);
-    db_type::search_result::const_iterator itr = result.begin(), itr_end = result.end();
+    db_type::search_results result = db.search_region(10, 10, 60, 20);
+    db_type::search_results::const_iterator itr = result.begin(), itr_end = result.end();
     cout << "result: " << endl;
     for_each(result.begin(), result.end(), search_result_printer<db_type>());
 
@@ -188,7 +188,8 @@ void pqt_test_insertion_removal()
             db.remove(x, y);
             size_t n = db.size();
             cout << "removing node at (" << x << "," << y << ")  " << "size after removal: " << n << endl;
-            assert(--node_count == n);
+            --node_count;
+            assert(node_count == n);
         }
     }
 }
@@ -361,11 +362,11 @@ template<typename _DbType>
 bool verify_find(
     const _DbType& db,
     typename _DbType::key_type x, typename _DbType::key_type y,
-    const typename _DbType::data_type data)
+    const typename _DbType::value_type data)
 {
     try
     {
-        typename _DbType::data_type found = db.find(x, y);
+        typename _DbType::value_type found = db.find(x, y);
         cout << "found at (" << x << "," << y << "): " << found << endl;
         if (found == data)
             return true;
@@ -454,15 +455,24 @@ void pqt_test_node_access()
 
 int main()
 {
-    pqt_test_basic();
-    pqt_test_insertion_removal();
-    pqt_test_remove_root();
-    pqt_test_equality();
-    pqt_test_assignment();
-    pqt_test_swap();
-    pqt_test_find();
-    pqt_test_node_access();
-    assert(get_node_instance_count() == 0);
+    try
+    {
+        pqt_test_basic();
+        pqt_test_insertion_removal();
+        pqt_test_remove_root();
+        pqt_test_equality();
+        pqt_test_assignment();
+        pqt_test_swap();
+        pqt_test_find();
+        pqt_test_node_access();
+        assert(get_node_instance_count() == 0);
+    }
+    catch (const std::exception& e)
+    {
+        cout << "Test failed: " << e.what() << endl;
+        return EXIT_FAILURE;
+    }
+
     cout << "Test finished successfully!" << endl;
     return EXIT_SUCCESS;
 }
