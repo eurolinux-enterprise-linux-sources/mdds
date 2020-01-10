@@ -1,4 +1,4 @@
-AC_INIT(mdds, 0.10.3, kohei.yoshida@gmail.com)
+AC_INIT(mdds, 0.12.1, kohei.yoshida@gmail.com)
 
 VERSION=AC_PACKAGE_VERSION
 AC_SUBST(VERSION)
@@ -49,7 +49,7 @@ elif test $with_hash_container = boost; then
   CPPFLAGS_NODEBUG="$CPPFLAGS_NODEBUG -DMDDS_HASH_CONTAINER_BOOST"
 fi
 
-CPPFLAGS="$CPPFLAGS_NODEBUG -DMDDS_DEBUG_NODE_BASE -DMDDS_UNIT_TEST -std=c++0x"
+CPPFLAGS="$CPPFLAGS $CPPFLAGS_NODEBUG -DMDDS_DEBUG_NODE_BASE -DMDDS_UNIT_TEST -std=c++0x"
 
 if test "$debug_stdcxx" = "yes"; then
   CPPFLAGS="$CPPFLAGS -D_GLIBCXX_DEBUG"

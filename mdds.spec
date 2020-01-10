@@ -2,19 +2,31 @@
 %global debug_package %{nil}
 
 Name: mdds
-Version: 0.10.3
+Version: 0.12.1
 Release: 1%{?dist}
 Summary: A collection of multi-dimensional data structures and indexing algorithms
 
 Group: Development/Libraries
 License: MIT
-URL: http://code.google.com/p/multidimalgorithm/
+URL: https://gitlab.com/mdds/mdds
 Source0: http://kohei.us/files/%{name}/src/%{name}_%{version}.tar.bz2
 
 BuildRequires: boost-devel
 
 %description
-A collection of multi-dimensional data structures and indexing algorithms.
+%{name} is a collection of multi-dimensional data structures and
+indexing algorithms.
+
+%package devel
+Group: Development/Libraries
+Summary: Headers for %{name}
+BuildArch: noarch
+Requires: boost-devel
+Provides: %{name}-static = %{version}-%{release}
+
+%description devel
+%{name} is a collection of multi-dimensional data structures and
+indexing algorithms.
  
 It implements the following data structures:
 * segment tree
@@ -26,20 +38,8 @@ It implements the following data structures:
 
 See README for a brief description of the structures.
 
-%package devel
-Group: Development/Libraries
-Summary: Headers for %{name}
-BuildArch: noarch
-Requires: boost-devel
-Provides: %{name}-static = %{version}-%{release}
-
-%description devel
-Headers for %{name}.
-
 %prep
-%setup -q -n %{name}_%{version}
-# this is only used in tests
-sed -i -e '/^CPPFLAGS_NODEBUG=/s/=.*/="%{optflags}"/' configure
+%autosetup -n %{name}_%{version} -p1
 
 %build
 %configure
@@ -56,9 +56,13 @@ make check %{?_smp_mflags}
 %files devel
 %{_includedir}/%{name}
 %{_datadir}/pkgconfig/%{name}.pc
-%doc AUTHORS COPYING NEWS README
+%doc AUTHORS NEWS README
+%license COPYING
 
 %changelog
+* Mon Feb 22 2016 David Tardon <dtardon@redhat.com> - 0.12.1-1
+- Resolves: rhbz#1290153 rebase to 0.12.1
+
 * Fri Aug 22 2014 David Tardon <dtardon@redhat.com> - 0.10.3-1
 - Resolves: rhbz#1132069 rebase to 0.10.3
 

@@ -1275,6 +1275,38 @@ void mtv_test_equality()
         assert(db1 == db1);
         assert(db2 == db2);
     }
+
+    {
+        // Two containers both consisting of numeric - empty - numeric blocks,
+        // and the last numeric blocks differ.
+
+        mtv_type db1(5), db2(5);
+        db1.set(0, 1.1);
+        db1.set(3, 2.1);
+        db1.set(4, 2.2);
+
+        db2.set(0, 1.1);
+        db2.set(3, 2.1);
+        db2.set(4, 2.3); // different value
+
+        assert(db1 != db2);
+    }
+
+    {
+        mtv_type db1(2), db2(2);
+        db1.set(1, 10.1);
+        db2.set(1, 10.1);
+        assert(db1 == db2);
+
+        db2.set(0, string("foo"));
+        assert(db1 != db2);
+
+        db1.set(0, string("foo"));
+        assert(db1 == db2);
+
+        db2.set_empty(0, 0);
+        assert(db1 != db2);
+    }
 }
 
 void mtv_test_clone()
@@ -2964,7 +2996,7 @@ void mtv_test_set_return_iterator()
     it = db.set(6, string("text"));
     assert(it->size == 1);
     assert(it->type == mtv::element_type_string);
-    assert(it->position = 6);
+    assert(it->position == 6);
     check = db.begin();
     std::advance(check, 2);
     assert(it == check);
@@ -4878,6 +4910,76 @@ void mtv_test_transfer()
 
     db1.set(2, 12.8);
     it = db1.transfer(1, 2, db2, 1);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(20);
+    db2.clear();
+    db2.resize(20);
+
+    db1.set(9, 1.1);
+
+    db2.set(10, 1.2);
+    db2.set(11, 1.3);
+
+    it = db1.transfer(9, 9, db2, 9);
+
+    // The source should be entirely empty after the transfer.
+    assert(db1.block_size() == 1);
+    assert(it == db1.begin());
+    assert(it->__private_data.block_index == 0);
+    assert(it->size == 20);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db1.end());
+
+    // Check the destination as well.
+    assert(db2.block_size() == 3);
+    it = db2.begin();
+    assert(it->size == 9);
+    assert(it->__private_data.block_index == 0);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it->size == 3);
+    assert(it->__private_data.block_index == 1);
+    assert(it->type == mtv::element_type_numeric);
+    ++it;
+    assert(it->size == 8);
+    assert(it->__private_data.block_index == 2);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db2.end());
+    assert(db2.get<double>(9) == 1.1);
+    assert(db2.get<double>(10) == 1.2);
+    assert(db2.get<double>(11) == 1.3);
+
+    // Reset and start over.
+    db1.clear();
+    db1.resize(20);
+    db2.clear();
+    db2.resize(20);
+
+    db1.set(8, 1.0);
+    db1.set(9, 1.1);
+
+    db2.set(10, 1.2);
+    db2.set(11, 1.3);
+
+    it = db1.transfer(9, 9, db2, 9);
+    assert(it->__private_data.block_index == 2);
+    assert(db1.block_size() == 3);
+    assert(db1.get<double>(8) == 1.0);
+    it = db1.begin();
+    assert(it->size == 8);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it->size == 1);
+    assert(it->type == mtv::element_type_numeric);
+    ++it;
+    assert(it->size == 11);
+    assert(it->type == mtv::element_type_empty);
+    ++it;
+    assert(it == db1.end());
 }
 
 void mtv_test_push_back()
@@ -4978,43 +5080,71 @@ void mtv_test_push_back()
     assert(it->type == mtv::element_type_numeric);
 }
 
+void mtv_test_capacity()
+{
+    stack_printer __stack_printer__("::mtv_test_capacity");
+    mtv_type db(10, 1.1);
+    assert(db.block_size() == 1);
+    mtv_type::const_iterator it = db.begin();
+    assert(it->type == mtv::element_type_numeric);
+    size_t cap = mtv::numeric_element_block::capacity(*it->data);
+    assert(cap == 10);
+
+    db.set_empty(3, 3);
+    assert(db.block_size() == 3);
+    db.shrink_to_fit();
+    it = db.begin();
+    assert(it->type == mtv::element_type_numeric);
+    cap = mtv::numeric_element_block::capacity(*it->data);
+    assert(cap == 3);
+}
+
 }
 
 int main (int argc, char **argv)
 {
-    mtv_test_types();
-    mtv_test_construction();
-    mtv_test_basic();
-    mtv_test_empty_cells();
-    mtv_test_swap();
-    mtv_test_equality();
-    mtv_test_clone();
-    mtv_test_resize();
-    mtv_test_erase();
-    mtv_test_insert_empty();
-    mtv_test_set_cells();
-    mtv_test_insert_cells();
-    mtv_test_iterators();
-    mtv_test_data_iterators();
-    mtv_test_non_const_data_iterators();
-    mtv_test_iterator_private_data();
-    mtv_test_set_return_iterator();
-    mtv_test_set2_return_iterator();
-    mtv_test_insert_cells_return_iterator();
-    mtv_test_set_empty_return_iterator();
-    mtv_test_insert_empty_return_iterator();
-    mtv_test_set_with_position();
-    mtv_test_set_cells_with_position();
-    mtv_test_insert_cells_with_position();
-    mtv_test_set_empty_with_position();
-    mtv_test_insert_empty_with_position();
-    mtv_test_position();
-    mtv_test_next_position();
-    mtv_test_swap_range();
-    mtv_test_value_type();
-    mtv_test_block_identifier();
-    mtv_test_transfer();
-    mtv_test_push_back();
+    try
+    {
+        mtv_test_types();
+        mtv_test_construction();
+        mtv_test_basic();
+        mtv_test_empty_cells();
+        mtv_test_swap();
+        mtv_test_equality();
+        mtv_test_clone();
+        mtv_test_resize();
+        mtv_test_erase();
+        mtv_test_insert_empty();
+        mtv_test_set_cells();
+        mtv_test_insert_cells();
+        mtv_test_iterators();
+        mtv_test_data_iterators();
+        mtv_test_non_const_data_iterators();
+        mtv_test_iterator_private_data();
+        mtv_test_set_return_iterator();
+        mtv_test_set2_return_iterator();
+        mtv_test_insert_cells_return_iterator();
+        mtv_test_set_empty_return_iterator();
+        mtv_test_insert_empty_return_iterator();
+        mtv_test_set_with_position();
+        mtv_test_set_cells_with_position();
+        mtv_test_insert_cells_with_position();
+        mtv_test_set_empty_with_position();
+        mtv_test_insert_empty_with_position();
+        mtv_test_position();
+        mtv_test_next_position();
+        mtv_test_swap_range();
+        mtv_test_value_type();
+        mtv_test_block_identifier();
+        mtv_test_transfer();
+        mtv_test_push_back();
+        mtv_test_capacity();
+    }
+    catch (const std::exception& e)
+    {
+        cout << "Test failed: " << e.what() << endl;
+        return EXIT_FAILURE;
+    }
 
     cout << "Test finished successfully!" << endl;
     return EXIT_SUCCESS;

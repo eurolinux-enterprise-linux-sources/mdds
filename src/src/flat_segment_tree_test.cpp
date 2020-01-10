@@ -30,6 +30,7 @@
 
 #include <list>
 #include <iostream>
+#include <string>
 #include <vector>
 #include <limits>
 #include <iterator>
@@ -1928,67 +1929,111 @@ void fst_test_assignment()
     assert(!db3.is_tree_valid());
 }
 
+void fst_test_non_numeric_value()
+{
+    stack_printer __stack_printer__("::fst_test_non_numeric_value");
+
+    typedef flat_segment_tree<int, std::string> db_type;
+    db_type db(0, 4, "42");
+    db.insert_back(1, 2, "hello world");
+
+    assert(db.default_value() == "42");
+
+    std::string result;
+    db.search(1, result);
+
+    assert(result == "hello world");
+}
+
+void fst_test_non_numeric_key()
+{
+    stack_printer __stack_printer__("::fst_test_non_numeric_key");
+
+    typedef flat_segment_tree<std::string, int> db_type;
+    db_type db("a", "h", 42);
+    db.insert_back("c", "f", 1);
+
+    assert(db.default_value() == 42);
+
+    int result(0);
+
+    db.search("d", result);
+    assert(result ==  1);
+    db.search("f", result);
+    assert(result ==  42);
+}
+
 int main (int argc, char **argv)
 {
-    cmd_options opt;
-    if (!parse_cmd_options(argc, argv, opt))
-        return EXIT_FAILURE;
-
-    if (opt.test_func)
+    try
     {
-        fst_test_equality();
-        fst_test_copy_ctor();
-        fst_test_back_insert();
+        cmd_options opt;
+        if (!parse_cmd_options(argc, argv, opt))
+            return EXIT_FAILURE;
+
+        if (opt.test_func)
         {
-            typedef unsigned int   key_type;
-            typedef unsigned short value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            fst_test_equality();
+            fst_test_copy_ctor();
+            fst_test_back_insert();
+            {
+                typedef unsigned int   key_type;
+                typedef unsigned short value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            {
+                typedef int   key_type;
+                typedef short value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            {
+                typedef long         key_type;
+                typedef unsigned int value_type;
+                for (value_type i = 0; i <= 100; ++i)
+                    fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            }
+
+            fst_test_leaf_search();
+            fst_test_tree_build();
+            fst_test_tree_search();
+            fst_test_insert_search_mix();
+            fst_test_shift_left();
+            fst_test_shift_left_right_edge();
+            fst_test_shift_left_append_new_segment();
+            fst_test_shift_right_init0();
+            fst_test_shift_right_init999();
+            fst_test_shift_right_bool();
+            fst_test_shift_right_skip_start_node();
+            fst_test_shift_right_all_nodes();
+            fst_test_const_iterator();
+            fst_test_insert_iterator();
+            fst_test_insert_state_changed();
+            fst_test_position_search();
+            fst_test_min_max_default();
+            fst_test_swap();
+            fst_test_clear();
+            fst_test_assignment();
+            fst_test_non_numeric_value();
+            fst_test_non_numeric_key();
         }
 
+        if (opt.test_perf)
         {
-            typedef int   key_type;
-            typedef short value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
+            fst_perf_test_search_leaf();
+            fst_perf_test_search_tree();
+            fst_perf_test_insert_front_back();
+            fst_perf_test_insert_position();
+            fst_perf_test_position_search();
         }
-
-        {
-            typedef long         key_type;
-            typedef unsigned int value_type;
-            for (value_type i = 0; i <= 100; ++i)
-                fst_test_insert_front_back<key_type, value_type>(0, 100, i);
-        }
-
-        fst_test_leaf_search();
-        fst_test_tree_build();
-        fst_test_tree_search();
-        fst_test_insert_search_mix();
-        fst_test_shift_left();
-        fst_test_shift_left_right_edge();
-        fst_test_shift_left_append_new_segment();
-        fst_test_shift_right_init0();
-        fst_test_shift_right_init999();
-        fst_test_shift_right_bool();
-        fst_test_shift_right_skip_start_node();
-        fst_test_shift_right_all_nodes();
-        fst_test_const_iterator();
-        fst_test_insert_iterator();
-        fst_test_insert_state_changed();
-        fst_test_position_search();
-        fst_test_min_max_default();
-        fst_test_swap();
-        fst_test_clear();
-        fst_test_assignment();
     }
-
-    if (opt.test_perf)
+    catch (const std::exception& e)
     {
-        fst_perf_test_search_leaf();
-        fst_perf_test_search_tree();
-        fst_perf_test_insert_front_back();
-        fst_perf_test_insert_position();
-        fst_perf_test_position_search();
+        fprintf(stdout, "Test failed: %s\n", e.what());
+        return EXIT_FAILURE;
     }
 
     fprintf(stdout, "Test finished successfully!\n");

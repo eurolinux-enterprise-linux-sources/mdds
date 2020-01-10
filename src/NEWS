@@ -1,3 +1,62 @@
+mdds 0.12.1
+
+* flat_segment_tree
+
+  * removed construction-from-int requirement from value_type to allow
+    non-numeric types to be stored.
+  * removed construction-from-int requirement from key_type as well.
+
+mdds 0.12.0
+
+* segment_tree
+
+  * remove pointer requirement from value_type to allow non-pointer
+    type to be stored.
+
+* multi_type_vector
+
+  * fixed a bug in the equality operator method.
+
+mdds 0.11.2
+
+* multi_type_vector
+
+  * fixed various memory leaks associated with the set() method when a
+    value overwrites an existing element in a managed block.
+
+mdds 0.11.1
+
+* all
+
+  * fixed a large number of outstanding defects reported by Coverity
+    Scan.
+
+* multi_type_vector
+
+  * fixed 2 cases of double-free bug in the variant of swap() that
+    allows segmented swapping.
+
+mdds 0.11.0
+
+* sorted_string_map (new)
+
+  * new data structure to support efficient mapping of textural keys
+    to numeric values when the key values are known at compile time.
+
+* multi_type_vector
+
+  * fixed a bug in transfer() where two adjacent blocks of identical
+    type would fail to be merged in some circumstances.
+
+  * added shrink_to_fit() to allow trimming of any excess capacity
+    from all non-empty blocks.
+
+  * fixed a double-free bug in the variant of swap() that allows
+    segmented swapping.
+
+  * improved the exception message when the block position lookup
+    fails to find valid block position, to make it easier to debug.
+
 mdds 0.10.3
 
 * multi_type_vector

@@ -30,6 +30,8 @@
 
 #include "mdds/global.hpp"
 
+#include <cassert>
+
 #include <boost/intrusive_ptr.hpp>
 
 namespace mdds {
@@ -232,20 +234,25 @@ struct quad_node_base
 
     node_ptr get_quadrant_node(node_quadrant_t quad) const
     {
+        node_ptr ret;
         switch (quad)
         {
             case quad_northeast:
-                return northeast;
+                ret = northeast;
+                break;
             case quad_northwest:
-                return northwest;
+                ret = northwest;
+                break;
             case quad_southeast:
-                return southeast;
+                ret = southeast;
+                break;
             case quad_southwest:
-                return southwest;
+                ret = southwest;
+                break;
             default:
                 throw general_error("unknown quadrant type");
         }
-        return node_ptr();
+        return ret;
     }
 };
 

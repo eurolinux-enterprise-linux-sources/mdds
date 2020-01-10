@@ -76,6 +76,7 @@ struct muser_cell
     muser_cell() : value(0.0) {}
     muser_cell(const muser_cell& r) : value(r.value) {}
     muser_cell(double _v) : value(_v) {}
+    ~muser_cell() {}
 };
 
 struct date
@@ -960,6 +961,36 @@ void mtv_test_managed_block()
         delete p1;
         delete p2;
     }
+
+    {
+        mtv_type db(5);
+
+        db.set(1, new muser_cell(1.1));
+        db.set(2, new muser_cell(1.2));
+        db.set(3, new muser_cell(1.3));
+
+        db.set(1, 2.1); // Don't leak the overwritten muser_cell instance.
+        db.set(2, 2.2); // ditto
+    }
+
+    {
+        mtv_type db(4);
+        db.set(0, new muser_cell(1.1));
+        db.set(1, new muser_cell(1.2));
+        db.set(2, new muser_cell(1.3));
+
+        db.set(2, 2.1); // Don't leak the overwritten muser_cell instance.
+        db.set(1, 2.0); // ditto
+    }
+
+    {
+        mtv_type db(8);
+        db.set(3, new muser_cell(1.1));
+        db.set(4, new muser_cell(1.2));
+        db.set(5, 1.3);
+
+        db.set(4, 2.2); // Overwrite muser_cell and don't leak.
+    }
 }
 
 void mtv_test_custom_block_func1()
@@ -1395,6 +1426,123 @@ void mtv_test_swap()
     db2.set(1, string("B"));
 
     db1.swap(2, 3, db2, 0);
+
+    // swap blocks of equal size, one managed, and one default.
+
+    db1.clear();
+    db1.resize(10);
+    db2.clear();
+    db2.resize(10);
+
+    db1.set(3, 2.1);
+    db1.set(4, 2.2);
+    db1.set(5, 2.3);
+
+    db2.set(3, new muser_cell(3.1));
+    db2.set(4, new muser_cell(3.2));
+    db2.set(5, new muser_cell(3.3));
+
+    db2.swap(3, 5, db1, 3);
+
+    assert(db1.size() == 10);
+    assert(db1.block_size() == 3);
+    assert(db2.size() == 10);
+    assert(db2.block_size() == 3);
+
+    assert(db1.get<muser_cell*>(3)->value == 3.1);
+    assert(db1.get<muser_cell*>(4)->value == 3.2);
+    assert(db1.get<muser_cell*>(5)->value == 3.3);
+    assert(db2.get<double>(3) == 2.1);
+    assert(db2.get<double>(4) == 2.2);
+    assert(db2.get<double>(5) == 2.3);
+
+    db2.swap(3, 5, db1, 3);
+
+    assert(db1.get<double>(3) == 2.1);
+    assert(db1.get<double>(4) == 2.2);
+    assert(db1.get<double>(5) == 2.3);
+    assert(db2.get<muser_cell*>(3)->value == 3.1);
+    assert(db2.get<muser_cell*>(4)->value == 3.2);
+    assert(db2.get<muser_cell*>(5)->value == 3.3);
+
+    // Same as above, except that the source segment splits the block into 2.
+
+    db1.clear();
+    db1.resize(10);
+    db2.clear();
+    db2.resize(10);
+
+    db1.set(3, 2.1);
+    db1.set(4, 2.2);
+
+    db2.set(3, new muser_cell(3.1));
+    db2.set(4, new muser_cell(3.2));
+    db2.set(5, new muser_cell(3.3));
+
+    db2.swap(3, 4, db1, 3);
+
+    // Another scenario that used to crash on double delete.
+
+    db1.clear();
+    db1.resize(10);
+    db2.clear();
+    db2.resize(10);
+
+    db1.set(2, new muser_cell(4.1));
+    db1.set(3, 4.2);
+    db1.set(4, new muser_cell(4.3));
+
+    db2.set(3, new muser_cell(6.1));
+    db2.set(4, 6.2);
+    db2.set(5, 6.3);
+
+    assert(db1.get<muser_cell*>(2)->value == 4.1);
+    assert(db1.get<double>(3) == 4.2);
+    assert(db1.get<muser_cell*>(4)->value == 4.3);
+
+    assert(db2.get<muser_cell*>(3)->value == 6.1);
+    assert(db2.get<double>(4) == 6.2);
+    assert(db2.get<double>(5) == 6.3);
+
+    db2.swap(4, 4, db1, 4);
+
+    assert(db1.get<muser_cell*>(2)->value == 4.1);
+    assert(db1.get<double>(3) == 4.2);
+    assert(db1.get<double>(4) == 6.2);
+
+    assert(db2.get<muser_cell*>(3)->value == 6.1);
+    assert(db2.get<muser_cell*>(4)->value == 4.3);
+    assert(db2.get<double>(5) == 6.3);
+
+    // One more on double deletion...
+
+    db1.clear();
+    db1.resize(10);
+    db2.clear();
+    db2.resize(10);
+
+    db1.set(0, 2.1);
+    db1.set(1, 2.2);
+    db1.set(2, 2.3);
+    db1.set(3, new muser_cell(4.5));
+
+    db2.set(2, new muser_cell(3.1));
+    db2.set(3, new muser_cell(3.2));
+    db2.set(4, new muser_cell(3.3));
+
+    db1.swap(2, 2, db2, 3);
+
+    assert(db1.get<double>(0) == 2.1);
+    assert(db1.get<double>(1) == 2.2);
+    assert(db1.get<muser_cell*>(2)->value == 3.2);
+    assert(db1.get<muser_cell*>(3)->value == 4.5);
+
+    assert(db2.get<muser_cell*>(2)->value == 3.1);
+    assert(db2.get<double>(3) == 2.3);
+    assert(db2.get<muser_cell*>(4)->value == 3.3);
+
+    assert(db1.check_block_integrity());
+    assert(db2.check_block_integrity());
 }
 
 void mtv_test_custom_block_func3()
@@ -1515,17 +1663,25 @@ void mtv_test_construction_with_array()
 
 int main (int argc, char **argv)
 {
-    mtv_test_types();
-    mtv_test_block_identifier();
-    mtv_test_basic();
-    mtv_test_equality();
-    mtv_test_managed_block();
-    mtv_test_custom_block_func1();
-    mtv_test_transfer();
-    mtv_test_swap();
-    mtv_test_custom_block_func3();
-    mtv_test_release();
-    mtv_test_construction_with_array();
+    try
+    {
+        mtv_test_types();
+        mtv_test_block_identifier();
+        mtv_test_basic();
+        mtv_test_equality();
+        mtv_test_managed_block();
+        mtv_test_custom_block_func1();
+        mtv_test_transfer();
+        mtv_test_swap();
+        mtv_test_custom_block_func3();
+        mtv_test_release();
+        mtv_test_construction_with_array();
+    }
+    catch (const std::exception& e)
+    {
+        cout << "Test failed: " << e.what() << endl;
+        return EXIT_FAILURE;
+    }
 
     cout << "Test finished successfully!" << endl;
     return EXIT_SUCCESS;
